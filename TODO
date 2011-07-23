@@ -80,6 +80,9 @@
   #+END_SRC
 
   #+BEGIN_SRC java :tangle Hangman.java
+    import java.lang.reflect.Array;
+    import java.util.Arrays;
+    import java.util.Queue;
     import java.io.IOException;
     
     import sisc.interpreter.Interpreter;
@@ -95,39 +98,20 @@
     import sisc.modules.s2j.JavaObject;
     
     public class Hangman {
-        public static Pair argsToList(final String[] args) {
-            Pair list = new Pair();
-            for (int i = args.length - 1; i > 0; i--)
-                list.setCdr(new Pair(new SchemeString(args[i]),
-                                     list.cdr()));
-            if (args.length > 0)
-                list.setCar(new SchemeString(args[0]));
-            else
-                list = EmptyList.EMPTYLIST;
+        public static final int maxWrongGuesses = 5;
     
-            return list;
+        public static int run(HangmanGame game, GuessingStrategy strategy) {
+            return 0;
         }
     
         public static void main(final String[] args) throws SchemeException, IOException {
-            Context.execute(new SchemeCaller() {
-                    public Object execute(Interpreter r) throws SchemeException {
-                        r.loadSourceFiles(new String[] { "hangman.scc" });
-                        try {
-                            System.out.println(
-                                               ((GuessingStrategy)
-                                                ((JavaObject)
-                                               r.eval(Util.proc(r.eval("main")),
-                                                      new Value[] {
-                                                          argsToList(args)
-                                                      })).get()).nextGuess(new HangmanGame("factual", 4)));
-                            return r.eval(Util.proc(r.eval("main")),
-                                          new Value[] { argsToList(args) });
-                        } catch (Throwable e) {
-                            e.printStackTrace();
-                        };
-                        return true;
-                    }
-                });
+            String dictionary = args[0];
+            String[] words = Arrays.copyOfRange(args, 1, args.length);
+            for (String word: words) {
+                HangmanGame game = new HangmanGame(word, maxWrongGuesses);
+                GuessingStrategy strategy = new GraphGuessingStrategy(dictionary, game);
+                run(game, strategy);
+            }
         }
     }
     
@@ -158,7 +142,7 @@
         (debug x))
       (define (next-guess game)
         #;(game get-secret-word-length)
-        (values)))
+        2))
     
     ;; (debug (java-proxy-class <hangman-game>))
     ;; (debug (java-class-name <hangman-game>)
@@ -166,6 +150,16 @@
     
     ;; (define-generic-java-methods next-guess)
     ;; (define-generic-java-field-accessors :next-guess)
+    
+    (define (make-dictionary dictionary)
+      (with-input-from-file
+          dictionary
+        (lambda ()
+          (unfold ))))
+    
+    (define (init strategy dictionary game)
+      (debug 2)
+      2)
     
     (define (main argv)
       (let ((dictionary (car argv))
@@ -203,3 +197,120 @@
 
   No, let's do it in Scheme. (Risky.)
   
+  We'll define the main run-loop in Java (=run(game, strategy)=); the
+  creation of the strategy, however, will defer to Scheme (=new
+  GraphStrategy(dictionary)=).
+
+  #+BEGIN_SRC java :tangle GraphGuessingStrategy.java
+    import java.io.IOException;
+    
+    import sisc.interpreter.Interpreter;
+    import sisc.interpreter.Context;
+    import sisc.interpreter.SchemeCaller;
+    import sisc.interpreter.SchemeException;
+    import sisc.data.EmptyList;
+    import sisc.data.Symbol;
+    import sisc.data.Pair;
+    import sisc.data.Value;
+    import sisc.data.SchemeString;
+    import sisc.util.Util;
+    import sisc.modules.s2j.JavaObject;
+    
+    public class GraphGuessingStrategy implements GuessingStrategy {
+        
+    
+        public Guess nextGuess(HangmanGame game) {
+            return new Guess() {
+                public void makeGuess(HangmanGame game) {
+                }
+            };
+        }
+    
+        // Let this take, instead, a dictionary-graph.
+        public GraphGuessingStrategy(final String dictionary, final HangmanGame game) throws SchemeException {
+            Context.execute(new SchemeCaller() {
+                    public Object execute(Interpreter interpreter) throws SchemeException {
+                        interpreter.loadSourceFiles(new String[] { "hangman.scc" });
+                        try {
+                            interpreter.eval(Util.proc(interpreter.eval("init")),
+                                             new Value[] {
+                                                 new JavaObject(this),
+                                                 new SchemeString(dictionary),
+                                                 new JavaObject(game)
+                                             });
+                        } catch (Throwable e) {
+                            e.printStackTrace();
+                        };
+                        return true;
+                    }
+                });
+        }
+    }
+    
+  #+END_SRC
+
+  Let's initialize a "strategy-factory" with the dictionary that
+  creates a graph for each class of words with letters $2 .. n$. No,
+  fuck that: initialize the =GraphGuessingStrategy= with the
+  dictionary-graph.
+
+  How do we share the graphs, though? Either it's some sort of opaque
+  scheme-object corresponding to, say, a hash-table; or it's some Java
+  object (say, =java.util.HashTable=) with which we have to interact
+  from Scheme. What are the performance characteristics of both
+  scenarios?
+
+  For convenience, I'd rather have Scheme objects to pass around (a
+  =Value=, essentially).
+
+  (Oh, check it out: they have a [[http://sisc-scheme.org/manual/javadoc/sisc/modules/hashtable/Hashtable.html][Hashtable]] interface.)
+
+  #+BEGIN_SRC scheme :tangle unfold-file.scm
+    (require-library 'sisc/libs/srfi/srfi-1)
+    (import srfi-1)
+    (import s2j)
+    ;; (load "irregex-0.8.1/irregex.scm")
+    ;; (require-extension (lib scsh-regexp/scsh-regexp))
+    ;; (import scsh-regexp/scsh-regexp)
+    
+    (define-java-classes
+      <java.lang.string>
+      <java.util.regex.pattern>)
+    
+    (define-generic-java-methods
+      matches)
+    
+    (let ((dictionary
+           (with-input-from-file
+               "words.txt"
+             (lambda ()
+               (let next-word ((word (read))
+                               (dictionary '()))
+                 (if (eof-object? word)
+                     dictionary
+                     (next-word
+                      (read)
+                      (cons (->jstring word) dictionary))))))))
+      (let ((pattern (->jstring "...")))
+        (filter (lambda (word)
+                  (->boolean (matches word pattern)))
+                dictionary))
+      #;
+      (for-each (lambda (word)
+                  'harro
+                  ;; (irregex-match '(w/nocase ".*") word)
+                  ;; (matches (->jstring word) (->jstring ".?"))
+                  #;
+                  (let ((word (java-new <java.lang.string> (->jstring word))))
+                  (matches (java-null <java.util.regex.pattern>) word (->jstring ".?"))))
+                dictionary))
+    
+  #+END_SRC
+
+  The issue is: either we have to deal with Scheme strings, Java
+  strings or some kind of conversion; the conversion is relatively
+  slow (have to do so for e.g. =java.lang.String.match()=); and
+  irregex doesn't work (otherwise we could stick with Scheme strings).
+
+  Can we do slow regex for now, and replace it with some e.g. trie
+  algo later?
