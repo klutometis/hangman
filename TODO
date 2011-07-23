@@ -1,0 +1,205 @@
+# -*- org -*-
+* TODO Graph
+  Graph based on input words, where the weight is the number of times
+  a letter follows another (or precedes?) (this is Markov, isn't it?);
+  and an frequency table of letters to seed the guesses.
+
+  Then we do a Dijkstra weighted--shortest-path and greedy
+  optimization?
+
+  At some point we need to do a calculation, though, don't we: given
+  that we have so many guesses left, etc., what's the cost of guessing
+  a word vs. guessing a letter?
+
+  We have neither secretWord nor maxWrongGuesses, though.
+
+  Going with the Dijkstra analogy, we remove edges for wrong guesses;
+  each edge represents a potential digram. (Could this be improved
+  with n-grams, etc.?)
+
+  1. Get the game;
+  2. determine how many letters;
+  3. take appropriate words;
+  4. build a frequency table for initial guesses (randomizing and
+     eliminating ties?);
+  5. build a weighted digram graph;
+  6. guess correctly: prune the graph (all paths at index {a1, ..., an}
+     converge on a) (question is: do we distinguish between letter
+     e.g. `a' at positions e.g. 1 and 3? If we permit cycles, the
+     links have lower quality; how do we reference index i in the
+     graph, though? We do have some starting nodes and perhaps even a
+     forest (shit: one graph for each starting letter));
+  7. guess incorrectly: prune the graph (no such letter exists).
+
+  We're dealing with a sort of tree here, aren't we, whose leaves are
+  words? In other words, given a sequence of correct guesses; it
+  should be unambiguous that it signifies a given word. Better yet: we
+  should be able to determine the set of signifiable words; we could
+  have some heuristic: possible words vs. =maxWrongGuesses=, but I
+  don't think we have =maxWrongGuesses=.
+
+  Not true! We have =numWrongGuessesRemaning()= and
+  =getMaxWrongGuesses()=. =getSecretWordLength()=: nice! That's what I
+  was looking for.
+
+  If =numWrongGuessesRemaning= > $|signifiableWords|$, then we can
+  clearly guess all the $\{signifiableWords\}$ one-by-one.
+
+  Thing we're missing is: how do we go from an incompletely determined
+  graph to possible words? That's why I suspect we're dealing with,
+  not a tree per se, but a graph with terminal vertices; graph if we
+  converge on letters: i.e. $\text{c}_1 \to \text{a}_2 \to
+  \text{b}_3$, $\text{f}_1 \to \text{a}_2 \to \text{b}_3$; as opposed
+  to: $\text{c}_{1_1} \to \text{a}_{2_1} \to \text{b}_{3_1}$,
+  $\text{f}_{1_1} \to \text{a}_{2_2} \to \text{b}_{3_2}$. Convergence
+  seems to make sense from a space point-of-view, as well as
+  determining convergent paths.
+
+  Create a special root node: one artificial graph (graph with
+  terminal vertices, not a tree).
+
+  #+BEGIN_SRC makefile :tangle graph.mk :shebang #!/usr/bin/unexpand -t 4
+    CLASSPATH := .:$(shell echo lib/*.jar | tr ' ' ':')
+    SOURCE := $(wildcard *.java) $(wildcard *.scm)
+    OBJECTS := $(patsubst %.java,%.class,$(wildcard *.java)) \
+        $(patsubst %.scm,%.scc,$(wildcard *.scm))
+    
+    .PHONY: test
+    
+    %.class : %.java
+        javac -classpath $(CLASSPATH) $<
+    
+    %.scc : %.scm
+        sisc -e "(compile-file \"$<\" \"$@\")"
+    
+    test: all
+        java -classpath $(CLASSPATH) Hangman words.txt factual
+    
+    all: $(OBJECTS)
+    
+  #+END_SRC
+
+  #+BEGIN_SRC java :tangle Hangman.java
+    import java.io.IOException;
+    
+    import sisc.interpreter.Interpreter;
+    import sisc.interpreter.Context;
+    import sisc.interpreter.SchemeCaller;
+    import sisc.interpreter.SchemeException;
+    import sisc.data.EmptyList;
+    import sisc.data.Symbol;
+    import sisc.data.Pair;
+    import sisc.data.Value;
+    import sisc.data.SchemeString;
+    import sisc.util.Util;
+    import sisc.modules.s2j.JavaObject;
+    
+    public class Hangman {
+        public static Pair argsToList(final String[] args) {
+            Pair list = new Pair();
+            for (int i = args.length - 1; i > 0; i--)
+                list.setCdr(new Pair(new SchemeString(args[i]),
+                                     list.cdr()));
+            if (args.length > 0)
+                list.setCar(new SchemeString(args[0]));
+            else
+                list = EmptyList.EMPTYLIST;
+    
+            return list;
+        }
+    
+        public static void main(final String[] args) throws SchemeException, IOException {
+            Context.execute(new SchemeCaller() {
+                    public Object execute(Interpreter r) throws SchemeException {
+                        r.loadSourceFiles(new String[] { "hangman.scc" });
+                        try {
+                            System.out.println(
+                                               ((GuessingStrategy)
+                                                ((JavaObject)
+                                               r.eval(Util.proc(r.eval("main")),
+                                                      new Value[] {
+                                                          argsToList(args)
+                                                      })).get()).nextGuess(new HangmanGame("factual", 4)));
+                            return r.eval(Util.proc(r.eval("main")),
+                                          new Value[] { argsToList(args) });
+                        } catch (Throwable e) {
+                            e.printStackTrace();
+                        };
+                        return true;
+                    }
+                });
+        }
+    }
+    
+  #+END_SRC
+
+  #+BEGIN_SRC scheme :tangle hangman.scm
+    (import s2j)
+    
+    (define-syntax debug
+      (syntax-rules ()
+        ((_ x ...)
+         (begin
+           (write `((x ,x) ...))
+           (newline)))))
+    
+    (define-java-classes
+      <guessing-strategy>
+      <hangman-game>
+      <hangman>)
+    
+    (define-java-proxy
+      (guessing-strategy dictionary game)
+      (<guessing-strategy>)
+      (define x 2)
+      #;
+      (define (guessing-strategy dictionary game)
+        (set! x 3)
+        (debug x))
+      (define (next-guess game)
+        #;(game get-secret-word-length)
+        (values)))
+    
+    ;; (debug (java-proxy-class <hangman-game>))
+    ;; (debug (java-class-name <hangman-game>)
+    ;;        (java-method-name guessing-strategy))
+    
+    ;; (define-generic-java-methods next-guess)
+    ;; (define-generic-java-field-accessors :next-guess)
+    
+    (define (main argv)
+      (let ((dictionary (car argv))
+            (words (cdr argv)))
+        (debug 2 dictionary words)
+        ;; (debug (java-new <java.util.linked-hash-set> (->jint 100)))
+        ;; (debug (java-new <hangman-game> (->jstring "factual") (->jint 4)))
+        (let* ((game (java-new <hangman-game> (->jstring "factual") (->jint 4)))
+               (strategy (guessing-strategy dictionary game)))
+          strategy)
+        #;
+        (let ((game (java-new <hangman-game> (->jstring "factual") (->jint 4))))
+          (debug game))
+    
+        ;; (java-new <hangman-game> (->jstring "oeunth") (->jint 5))
+        ;; (java-new <hangman-game> "oeuhnt" 5)
+        #;
+        (with-input-from-file
+        dictionary
+        (lambda ()
+        (let next-word ((word (read)))
+        (if (eof-object? word)
+        0
+        (begin
+        (debug word)
+        (next-word (read)))))))))
+    
+  #+END_SRC
+
+  I'm going to assume that the program takes a dictionary file and
+  list of words; and that I have to program the glue.
+
+  How is this going to work with initialization, etc.? For clarity,
+  should we implement the interface in Java, there to defer to Scheme?
+
+  No, let's do it in Scheme. (Risky.)
+  
