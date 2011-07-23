@@ -291,19 +291,40 @@
                      (next-word
                       (read)
                       (cons (->jstring word) dictionary))))))))
+      #;
       (let ((pattern (->jstring "...")))
         (filter (lambda (word)
                   (->boolean (matches word pattern)))
                 dictionary))
+      ;; Adds 6 sec.
+      #;
+      (let ((pattern (->jstring ".......")))
+        (filter (lambda (word)
+                  (->boolean (matches word pattern)))
+                dictionary))
+      ;; Adds 6 sec.
+      #;
+      (let ((pattern (->jstring "...a...")))
+        (filter (lambda (word)
+                  (->boolean (matches word pattern)))
+                dictionary))
+      (let ((pattern (->jstring "...a...")))
+        (filter (lambda (word)
+                  (->boolean (matches word pattern)))
+                (let ((pattern (->jstring ".......")))
+                  (filter (lambda (word)
+                            (->boolean (matches word pattern)))
+                          dictionary))))
+      2
       #;
       (for-each (lambda (word)
-                  'harro
-                  ;; (irregex-match '(w/nocase ".*") word)
-                  ;; (matches (->jstring word) (->jstring ".?"))
-                  #;
-                  (let ((word (java-new <java.lang.string> (->jstring word))))
-                  (matches (java-null <java.util.regex.pattern>) word (->jstring ".?"))))
-                dictionary))
+      'harro
+      ;; (irregex-match '(w/nocase ".*") word)
+      ;; (matches (->jstring word) (->jstring ".?"))
+      #;
+      (let ((word (java-new <java.lang.string> (->jstring word))))
+      (matches (java-null <java.util.regex.pattern>) word (->jstring ".?"))))
+      dictionary))
     
   #+END_SRC
 
@@ -314,3 +335,18 @@
 
   Can we do slow regex for now, and replace it with some e.g. trie
   algo later?
+
+  I just realized that the chaining doesn't matter; we're only dealing
+  with frequency, I believe. Could roughly:
+
+  1. Filter the current dictionary based on =getGuessedSoFar()= (this
+     could be a string->regex substitution for now and would thus
+     carry an O(n * O(regex)) penalty; some sort of e.g. trie-based
+     search might get us log-linear).
+  2. Is the $|current dictionary| < numWrongGuessesRemaning$? Guess!
+  3. Build a frequency list of letters.
+  4. Guess one of the most frequent letters; remove it.
+  5. Wrong?
+     1. Guess again.
+  6. Right?
+     1. Goto 1.
