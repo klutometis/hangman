@@ -437,7 +437,7 @@
   src/com/factual/hangman, or should we create a separate repo
   containing a jar?
 
-  [[http://p.hagelb.org/import-indent.html][Vectors vs. lists]] in namespaces (fuckers).
+  [[http://p.hagelb.org/import-indent.html][Vectors vs. lists]] in namespaces (fuckers). ([[http://www.vineetmanohar.com/2009/11/3-ways-to-run-java-main-from-maven/][Main from maven]], btw.)
 * Description
 ** The Goal
 
