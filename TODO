@@ -436,3 +436,5 @@
   On [[http://blog.8thlight.com/articles/2010/12/6/clojure-libs-and-namespaces-require-use-import-and-ns][namespaces]]; let's relegate factual's hangman to
   src/com/factual/hangman, or should we create a separate repo
   containing a jar?
+
+  [[http://p.hagelb.org/import-indent.html][Vectors vs. lists]] in namespaces (fuckers).
