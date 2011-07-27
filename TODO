@@ -308,6 +308,7 @@
         (filter (lambda (word)
                   (->boolean (matches word pattern)))
                 dictionary))
+      ;; Adds 4 sec; should we bother compiling the regex?
       (let ((pattern (->jstring "...a...")))
         (filter (lambda (word)
                   (->boolean (matches word pattern)))
@@ -350,3 +351,83 @@
      1. Guess again.
   6. Right?
      1. Goto 1.
+
+  Just met Aaron at the Hacker News meetup: drop Scheme, adopt
+  Clojure.
+
+  [[http://stackoverflow.com/questions/6339473/python-regex-hangman-algorithm][This]] is subtle, by the way: regexps are susceptible to false
+  positives. From the same page:
+
+  #+BEGIN_QUOTE
+  As far as determining the next character to guess, you probably
+  don't want to select the most frequent character. Instead, you want
+  to select the character that comes closest to being in 50% of words,
+  meaning you eliminate the most possibilities either way.
+  #+END_QUOTE
+
+  Also:
+
+  #+BEGIN_QUOTE
+  Your regex should look more like this: '^e[^e][^e][^e][^e]e[^e]$'.
+  #+END_QUOTE
+
+  Good call.
+
+  [[http://qs343.pair.com/~monkperl/index.pl?node_id=780414][Frequency and density]]; also: probability that letter is in a given
+  position!
+
+  #+BEGIN_QUOTE
+  From this, you can easily duplicate my algorithm by determining
+  which letter to choose based on which word appears in the most
+  candidate words (highest probability of being right) and break ties
+  by using the highest overall density.
+  #+END_QUOTE
+
+  #+BEGIN_QUOTE
+  First, a 1 size fits all algorithm that weighs various different
+  pieces of data to produce an overall score. The advantage here is
+  that you should be able to tune these weights without touching code
+  to produce the best results for a given "dictionary". The second
+  approach would be to have multiple algorithms already fine tuned for
+  a given set of conditions and dispatch to that algorithm based on
+  initial conditions. For instance, it may be ok to take a risk of
+  guessing wrong if the remaining wrong guesses is still high or
+  perhaps utilize the "simple" algorithm already presented unless the
+  probabilities and candidates remaining (if right or wrong) is beyond
+  some threshold.
+  #+END_QUOTE
+
+  The Markov chains come up again:
+
+  #+BEGIN_QUOTE
+  An higher order approach would be to look at probabilities for
+  chains of letters. E. g. in English the chance for an 'u' should be
+  higher than average after a 'q'.
+  #+END_QUOTE
+
+  He's right, actually: looking at mere frequency represents a loss of
+  data (`q' followed by `u', for instance, is not handled). Let's
+  revisit the Markov idea.
+
+  On the other hand, maybe I was right:
+
+  #+BEGIN_QUOTE
+  If 'q' is guessed and is correct, then the next time around, 'u' will
+  already jump to the top of the list of letters with the most
+  probability to be correct. You don't need to know any special
+  knowledge about letter frequency (alone or in chains) to get this benefit.
+  #+END_QUOTE
+
+  [[http://qs343.pair.com/~monkperl/index.pl?node_id=779296][Original post]]; this guy is suggesting some kind of binary search:
+
+  #+BEGIN_QUOTE
+  At least in your example, a letter never appears in more than half
+  of the candidates, so the most frequent letter and the
+  closest-to-half-half letter coincide. But imagine if you found out
+  that the actual word contained Q. Then for sure the next most common
+  letter will be a U; but guessing U and getting it right will not
+  give you much new information. Aiming for half-half lets your
+  correct and incorrect guesses both contribute information.
+  #+END_QUOTE
+
+  
