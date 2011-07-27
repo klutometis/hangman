@@ -437,7 +437,8 @@
   src/com/factual/hangman, or should we create a separate repo
   containing a jar?
 
-  [[http://p.hagelb.org/import-indent.html][Vectors vs. lists]] in namespaces (fuckers). ([[http://www.vineetmanohar.com/2009/11/3-ways-to-run-java-main-from-maven/][Main from maven]], btw.)
+  [[http://p.hagelb.org/import-indent.html][Vectors vs. lists]] in namespaces (fuckers). [[http://www.vineetmanohar.com/2009/11/3-ways-to-run-java-main-from-maven/][Main from maven]], btw.;
+  [[http://www.avajava.com/tutorials/lessons/how-do-i-specify-a-main-class-in-the-manifest-of-my-generated-jar-file.html][specifying in MANIFEST.MF]], too.
 * Description
 ** The Goal
 
@@ -588,3 +589,5 @@
      - total score for 100 random words, compared to the total score of
        several reference implementations for the same 100 words (max wrong
        guesses is typically set to 5)
+
+
