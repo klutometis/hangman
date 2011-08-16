@@ -1,4 +1,41 @@
 # -*- org -*-
+* DONE Read in list of words
+  CLOSED: [2011-08-15 Mon 21:22]
+  #+BEGIN_SRC clojure
+    (use 'clojure.contrib.io)
+    
+    ;;; This is about twice as slow: it has to parse the line; it only
+    ;;; gathers 53754 words, furthermore, whereas `wc words.txt' gives
+    ;;; 173528.
+    (time
+     (with-in-reader
+       "words.txt"
+       (loop [word (read *in* false nil) words '()]
+         (if word
+           (recur (read *in* false nil) (cons word words))
+           (count words)))))
+    
+    ;;; This gives 173529 (including the blank word).
+    (time
+     (binding [*in* (reader "words.txt")]
+       (loop [word (read-line) words '()]
+         (if word
+           (recur (read-line) (cons word words))
+           (count words)))))
+    
+    ;;; This is slightly slower than `loop'; gives the right result,
+    ;;; though.
+    (time (count (reduce (fn [x y] (cons y x)) '() (read-lines "words.txt"))))
+    
+  #+END_SRC
+* DONE Regex
+  CLOSED: [2011-08-15 Mon 19:51]
+  #+BEGIN_SRC clojure
+    (use 'clojure.contrib.str-utils)
+    (re-find #"[a-z]+" "harro")
+    (re-gsub #"h" "x" "harro")
+
+  #+END_SRC
 * TODO Graph
   Graph based on input words, where the weight is the number of times
   a letter follows another (or precedes?) (this is Markov, isn't it?);
@@ -429,8 +466,6 @@
   give you much new information. Aiming for half-half lets your
   correct and incorrect guesses both contribute information.
   #+END_QUOTE
-
-  
 
 * TODO Clojure
   On [[http://blog.8thlight.com/articles/2010/12/6/clojure-libs-and-namespaces-require-use-import-and-ns][namespaces]]; let's relegate factual's hangman to
