@@ -36,6 +36,10 @@
     (re-gsub #"h" "x" "harro")
 
   #+END_SRC
+* TODO Regex then trie
+  Let's work with a regex solution that treats the words holistically
+  (i.e. as strings); if we can beat regex with some sort of trie:
+  great.
 * TODO Graph
   Graph based on input words, where the weight is the number of times
   a letter follows another (or precedes?) (this is Markov, isn't it?);
@@ -465,8 +469,7 @@
   letter will be a U; but guessing U and getting it right will not
   give you much new information. Aiming for half-half lets your
   correct and incorrect guesses both contribute information.
-  #+END_QUOTE
-
+  #+END_QUOTE  
 * TODO Clojure
   On [[http://blog.8thlight.com/articles/2010/12/6/clojure-libs-and-namespaces-require-use-import-and-ns][namespaces]]; let's relegate factual's hangman to
   src/com/factual/hangman, or should we create a separate repo
@@ -474,6 +477,27 @@
 
   [[http://p.hagelb.org/import-indent.html][Vectors vs. lists]] in namespaces (fuckers). [[http://www.vineetmanohar.com/2009/11/3-ways-to-run-java-main-from-maven/][Main from maven]], btw.;
   [[http://www.avajava.com/tutorials/lessons/how-do-i-specify-a-main-class-in-the-manifest-of-my-generated-jar-file.html][specifying in MANIFEST.MF]], too.
+* TODO Leiningen
+  [[http://alexott.net/en/clojure/ClojureLein.html][Pretty good intro]]; workflow:
+
+  #+BEGIN_QUOTE
+  - you create a project (=lein new=), define dependencies on external
+    libraries and download them with =lein deps= command (you need to
+    run it after each change of dependencies);
+  - you write your code, periodically running =lein compile=, =lein
+    test=, and may be using =lein repl=, =lein swank= or =lein
+    nailgun= (depending on your personal preferences) for interactive
+    development;
+  - if you develop a library, that you plan to use in other projects,
+    then you can install it into Maven's local repository with =lein
+    install= command, or you can upload it to Clojars (with scp, as
+    suggested in documentation, or by using the lein-clojars plugin);
+  - if you develop a program for end-user, then you can pack your code
+    into package with =lein jar= command (only your code, without
+    dependencies), or with =lein uberjar=, with all dependencies
+    included into package — it's much easier to distribute such
+    packages to end users.
+  #+END_QUOTE
 * Description
 ** The Goal
 
