@@ -2,4 +2,5 @@
   :description "Hangman"
   :dependencies [[org.clojure/clojure "1.2.1"]
                  [org.clojure/clojure-contrib "1.2.0"]]
+  :java-source-path [["src"]]
   :dev-dependencies [[swank-clojure "1.3.2"]])
