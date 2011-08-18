@@ -15,15 +15,13 @@
     (defn run
       ([game strategy]
          ;; Can also just wrap this in with-open, since
-         ;; assertCanKeepGuessing() in guessLetter, etc. will throw an
-         ;; exception.
-         (let [x (atom 0)]
-           (while (and (keep-guessing? game) (< @x 10))
-             (swap! x inc)
-             (print (.gameStatus game))
-             (print (.currentScore game))
-             (let [guess (.nextGuess strategy game)]
-               (.makeGuess guess game))))
+         ;; assertCanKeepGuessing (in guessLetter and guessWord) will
+         ;; throw an exception.
+         (while (can-keep-guessing? game)
+           (println game)
+           (let [guess (.nextGuess strategy game)]
+             (.makeGuess guess game)))
+         (println game)
          (.currentScore game)))
     
     (defn make-strategy []
