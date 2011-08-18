@@ -1,29 +1,35 @@
 # -*- org -*-
-* CANCELED Continuations
-  CLOSED: [2011-08-18 Thu 01:53]
-  Someone did [[https://github.com/swannodette/delimc][delimited continuations]].
+* TODO Check TODO.pdf into the repository as documentation?
+  It goes against checking derivative things in; maybe we can generate
+  it for releases. Here's a [[http://stackoverflow.com/questions/1431082/programmatically-add-files-to-a-github-download-page][half-ass discussion]]; 'tis true, though,
+  that PDF is a PS-derivative and, as such, is not wholly binary.
+* TODO Regex-based GuessingStrategy
+  (New pseudo-code syntax, by the way: parenthesized phrases are
+  potential optizimations; bracketed phrases are commentary.)
 
-  #+BEGIN_SRC clojure
-    (use 'delimc.core)
-    (assert (= (+ 1 (reset (+ 2 3))) 6))
-    (assert (= (+ 1 (reset (+ 2 (shift k 3)))) 4))
-    (assert (= (+ 1 (reset (+ 2 (shift k (+ 3 (k 4)))))) 10))
+  #+BEGIN_SRC org
+    ,- Create dictionary.
+    ,  - Read file and create a list of words.
+    ,    - (Order the list by arity, so that pre-filtering is more
+    ,      efficient.)
+    ,- Initialize filter-strategy on HangmanGame and dictionary.
+    ,  - Copy the dictionary.
+    ,    - [We're going to have state, unfortunately, since we don't
+    ,      control the game loop; or can we use continuations, =yield= or
+    ,      coroutines?
+    ,  - (Pre-filter dictionary by letter-arity.)
+    ,- 
     
   #+END_SRC
-
-  Given the pre-defined interface, though, I'm not sure how we'd fold
-  it in: a global continuation, of course, which is mutated by
-  =reset!=. Is that principally different than mutating the dictionary state
-  of the =GuessingStrategy=?
-* DONE Separate java and clojure dirs under src?
-  CLOSED: [2011-08-18 Thu 01:59]
-  Could accomplish this with =:source-path= and =:java-source-path=.
 * TODO Regex then trie
 # <<regex-then-tries>>
   Let's work with a regex solution that treats the words holistically
   (i.e. as strings); if we can beat regex with some sort of trie:
   great.
-* DONE Strings as =seq=s
+* DONE Separate java and clojure dirs under src?
+  CLOSED: [2011-08-18 Thu 01:59]
+  Could accomplish this with =:source-path= and =:java-source-path=.
+* DONE Strings as seqs
   CLOSED: [2011-08-17 Wed 23:51]
   #+BEGIN_SRC clojure
     ;;; Treating strings as seqs of characters.
@@ -35,10 +41,9 @@
     ;;; Convert a string into a seq.
     (assert (= (seq "abc") '(\a \b \c)))
   #+END_SRC
-* DONE Implement a trivial GuessingStrategy
+* DONE Implement a trivial GuessingStrategy.
   CLOSED: [2011-08-17 Wed 23:52]
   #+BEGIN_SRC clojure
-    
     (import '(com.factual.hangman
               GuessingStrategy
               GuessLetter
@@ -76,7 +81,7 @@
       (run game (make-random-strategy)))
     
   #+END_SRC
-* DONE Read in words, filter on regex
+* DONE Read in words, filter on regex.
   CLOSED: [2011-08-17 Wed 16:34]
   #+BEGIN_SRC clojure
     ;;; Roughly 50 msecs.
@@ -90,7 +95,7 @@
        (filter (partial re-find #"^[^a][^a][e]$") words)))
     
   #+END_SRC
-* DONE Read in list of words
+* DONE Read in list of words.
   CLOSED: [2011-08-15 Mon 21:22]
   #+BEGIN_SRC clojure
     (use 'clojure.contrib.io)
@@ -199,6 +204,22 @@
     included into package — it's much easier to distribute such
     packages to end users.
   #+END_QUOTE
+* CANCELED Continuations
+  CLOSED: [2011-08-18 Thu 01:53]
+  Someone did [[https://github.com/swannodette/delimc][delimited continuations]].
+
+  #+BEGIN_SRC clojure
+    (use 'delimc.core)
+    (assert (= (+ 1 (reset (+ 2 3))) 6))
+    (assert (= (+ 1 (reset (+ 2 (shift k 3)))) 4))
+    (assert (= (+ 1 (reset (+ 2 (shift k (+ 3 (k 4)))))) 10))
+    
+  #+END_SRC
+
+  Given the pre-defined interface, though, I'm not sure how we'd fold
+  it in: a global continuation, of course, which is mutated by
+  =reset!=. Is that principally different than mutating the dictionary state
+  of the =GuessingStrategy=?
 * CANCELED Graph
   CLOSED: [2011-08-17 Wed 23:53]
   - CLOSING NOTE [2011-08-17 Wed 23:53] \\
