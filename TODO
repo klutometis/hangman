@@ -9,7 +9,7 @@
               HangmanGame
               HangmanGame$Status))
     
-    (defn keep-guessing?
+    (defn can-keep-guessing?
       ([game] (= (.gameStatus game) HangmanGame$Status/KEEP_GUESSING)))
     
     (defn run
