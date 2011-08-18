@@ -549,7 +549,8 @@
   =juxt= (ad-hoc, anyone?); =(keep f coll)=: ad-hoc identity filter on
   non-nil; =lazy-cat=; =lazy-seq=; =letfn=; =list*=; =macroexpand=;
   =make-hierarchy= relates to =derive=, =isa?=; =map-indexed=
-  (sometimes useful); =memfn=: java method as first-class =fn=;
+  (sometimes useful); =memfn=: java method as first-class =fn= ([[http://blog.m.artins.net/clojure-integrating-with-java/][this]]
+  is cool: =(map (memfn toUpperCase) ["a" "short" "message"])=);
   =memoize=; =merge= for maps; =meta= for metadata (=^{ ... }=?);
   =next= like =cdr=; =neg?= instead of =negative?= [analogical
   learning]; =nfirst= instead of =cdar=; =nnext= instead of =cddr=,
