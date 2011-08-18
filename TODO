@@ -1,4 +1,20 @@
 # -*- org -*-
+* CANCELED Continuations
+  CLOSED: [2011-08-18 Thu 01:53]
+  Someone did [[https://github.com/swannodette/delimc][delimited continuations]].
+
+  #+BEGIN_SRC clojure
+    (use 'delimc.core)
+    (assert (= (+ 1 (reset (+ 2 3))) 6))
+    (assert (= (+ 1 (reset (+ 2 (shift k 3)))) 4))
+    (assert (= (+ 1 (reset (+ 2 (shift k (+ 3 (k 4)))))) 10))
+    
+  #+END_SRC
+
+  Given the pre-defined interface, though, I'm not sure how we'd fold
+  it in: a global continuation, of course, which is mutated by
+  =reset!=. Is that principally different than mutating the dictionary state
+  of the =GuessingStrategy=?
 * TODO Regex then trie
 # <<regex-then-tries>>
   Let's work with a regex solution that treats the words holistically
