@@ -24,15 +24,19 @@
          (println game)
          (.currentScore game)))
     
-    (defn make-strategy []
+    (defn random-letter []
+      (let [letter (+ (rand-int 26) 97)]
+        (char letter)))
+    
+    (defn make-random-strategy []
       (reify
         GuessingStrategy
-        (nextGuess [_ game] (new GuessLetter \a))))
+        (nextGuess [_ game] (new GuessLetter (random-letter)))))
     
     (let [game (new HangmanGame "factual" 4)]
       (assert (= (.currentScore game) 0))
       (assert (= (.gameStatus game) HangmanGame$Status/KEEP_GUESSING))
-      (run game (make-strategy)))
+      (run game (make-random-strategy)))
     
   #+END_SRC
 * DONE Read in words, filter on regex
