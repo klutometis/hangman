@@ -15,6 +15,9 @@
   it in: a global continuation, of course, which is mutated by
   =reset!=. Is that principally different than mutating the dictionary state
   of the =GuessingStrategy=?
+* DONE Separate java and clojure dirs under src?
+  CLOSED: [2011-08-18 Thu 01:59]
+  Could accomplish this with =:source-path= and =:java-source-path=.
 * TODO Regex then trie
 # <<regex-then-tries>>
   Let's work with a regex solution that treats the words holistically
