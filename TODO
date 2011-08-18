@@ -1,4 +1,18 @@
 # -*- org -*-
+* DONE Read in words, filter on regex
+  CLOSED: [2011-08-17 Wed 16:34]
+  #+BEGIN_SRC clojure
+    ;;; Roughly 50 msecs.
+    (time
+     (let [words
+           (binding [*in* (reader "words.txt")]
+             (loop [word (read-line) words '()]
+               (if word
+                 (recur (read-line) (cons word words))
+                 words)))]
+       (filter (partial re-find #"^[^a][^a][e]$") words)))
+    
+  #+END_SRC
 * DONE Read in list of words
   CLOSED: [2011-08-15 Mon 21:22]
   #+BEGIN_SRC clojure
@@ -477,6 +491,47 @@
 
   [[http://p.hagelb.org/import-indent.html][Vectors vs. lists]] in namespaces (fuckers). [[http://www.vineetmanohar.com/2009/11/3-ways-to-run-java-main-from-maven/][Main from maven]], btw.;
   [[http://www.avajava.com/tutorials/lessons/how-do-i-specify-a-main-class-in-the-manifest-of-my-generated-jar-file.html][specifying in MANIFEST.MF]], too.
+
+  On perusing the API:
+
+  =defrecord= like SRFI-9; =comment= like =#;=; but cf =defstruct=;
+  =delay=; =deliver=; =disj= like =delete=; also, =dissoc= for maps;
+  =doall= for side effects; =doc= reads doc strings, also =^{doc:
+  ...}=? cf. =dorun= vs. =doall=; =doseq= appears to be the analogy
+  for =for-each=, though; =doall= and =dorun= force the lazy
+  evaluation of a sequence, apparently; =dorun= ignores the
+  side-effects on the sequence; cf. =unfold=? =doto=: =(doto (new
+  java.util.HashMap) (.put "a" 1) (.put "b" 2))=; =do= like =begin=;
+  =file-seq=; =fnext= like =cadr=; =for=: lazy list-comprehension;
+  =force=; =format= strings (c-style); =gen-class=; =gen-interface=
+  (requires compilation?); =gensym=, cool; =get=; =get-in=: "nested
+  associative structure": alist? =hash-map=; =identity=; =if-let=;
+  =if-not=; =inc=; =interleave= like =zip=; =intern=; =interpose=;
+  =into= like =append=? =into-array=; =iterate=: x, (f x), (f (f x));
+  =juxt= (ad-hoc, anyone?); =(keep f coll)=: ad-hoc identity filter on
+  non-nil; =lazy-cat=; =lazy-seq=; =letfn=; =list*=; =macroexpand=;
+  =make-hierarchy= relates to =derive=, =isa?=; =map-indexed=
+  (sometimes useful); =memfn=: java method as first-class =fn=;
+  =memoize=; =merge= for maps; =meta= for metadata (=^{ ... }=?);
+  =next= like =cdr=; =neg?= instead of =negative?= [analogical
+  learning]; =nfirst= instead of =cdar=; =nnext= instead of =cddr=,
+  etc.; =not-any?=; =not-every?=; =nth= instead of =list-ref=;
+  =nthnext= for pairs? =partition=; =pmap= for parallel mapping; =pr=
+  like =write= (=write= is intended for =read=, too, I think);
+  =pr-str=; =print=, =println=: "human consumption"; =print-str=,
+  =println-str=; =printf= (cf. =format=); =prn=: =pr= and =newline=;
+  =pvalues=: parallel; =reductions=: intermediate values of
+  reductions, too; =reify=: instantiate objects? =remove= also like
+  =delete=? lazy; =repeat=; =repeatedly=: like =tabulate=; =replicate=
+  like =make-list=; =reset!= like =set!=? =rseq=: reverse =seq=;
+  =rsubseq=; =send= for agents; =seq=: seq on the collection; =seque=:
+  queued seq; =sequence=: distinct from =seq=; =set=: distinct
+  elements; =shuffle=; =some=: =(some #{:fred} coll)= (oh, yeah: sets
+  can be used as predicates somehow to test for membership, right?);
+  =sort=; =sorted-set=; =str=: to string; =subseq=; =subvec=; =take=;
+  =take-last=; =trampoline=: mutual recursion without stack
+  consumption; =with-bindings= and =with-bindings*= vs. =binding=
+  (former two appear to be "[[http://groups.google.com/group/clojure/browse_thread/thread/c42a24c7b927c2b5][low level]]")?
 * TODO Leiningen
   [[http://alexott.net/en/clojure/ClojureLein.html][Pretty good intro]]; workflow:
 
