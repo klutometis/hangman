@@ -40,9 +40,133 @@
     ,      control the game loop; or can we use continuations, =yield= or
     ,      coroutines?
     ,  - (Pre-filter dictionary by letter-arity.)
-    ,- 
+    ,- Next guess
+    ,  - Convert =game.getGuessedSoFar= into a suitable regex.
+    ,    - Create negative regex: =String.format("[^%s]", new
+    ,      String(game.getIncorrectlyGuessedLetters()))=
+    ,    - Substitution on =game.getGuessedSoFar= of
+    ,      =HangmanGame.MYSTERY_LETTER= for negative regex.
+    ,    - Prepend =^=, append =$=.
+    ,  - Destructively filter dictionary on regex.
+    ,  - If solution is unambiguous, guess word.
+    ,    - (Alternatively, some sort of score based on number of possibly
+    ,      solutions and number of remaining guesses.)
+    ,    - Otherwise, create a sorted map of frequency -> letter (counting
+    ,      one letter per word); guess one random sample from the maximally
+    ,      frequent letters.
+  #+END_SRC
+  
+  #+BEGIN_SRC clojure	
+    (use '[clojure.contrib.io :only (reader)]
+         '[clojure.contrib.string :only (replace-str)]
+         'hangman.core
+         '[clojure.set :only (difference map-invert)])
+    
+    (import '(com.factual.hangman
+              GuessingStrategy
+              GuessLetter
+              GuessWord
+              HangmanGame
+              HangmanGame$Status)
+            'java.lang.Character)
+    
+    ;;; Possible optimization: sort by arity.
+    (defn make-dictionary [dictionary-file]
+      (with-open [dictionary-input (reader dictionary-file)]
+        (binding [*in* dictionary-input]
+          ;; I would use read-lines here, but I've run into stack
+          ;; overflows.
+          (loop [word (read-line) words '()]
+            (if word
+              (recur (read-line) (cons word words))
+              words)))))
+    
+    (defn random-letter []
+      (let [letter (+ (rand-int 26) 97)]
+        (char letter)))
+    
+    (defn negative-regex [game]
+      (let [incorrectly-guessed-letters (.getIncorrectlyGuessedLetters game)]
+        (if (empty? incorrectly-guessed-letters)
+          "[a-z]"
+          (format "[^%s]" (new String (char-array (.getIncorrectlyGuessedLetters game)))))))
+    
+    (defn make-regex-strategy [dictionary]
+      (let [dictionary (atom dictionary)]
+        (reify
+          GuessingStrategy
+          (nextGuess [_ game]
+            (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
+                  negative-regex (negative-regex game)
+                  filtering-regex (format "^%s$"(replace-str "-" negative-regex guessed-so-far))
+                  filtering-pattern (re-pattern filtering-regex)]
+              (swap!
+               dictionary
+               (fn [dictionary]
+                 (filter (fn [word] (re-seq filtering-pattern word)) dictionary)))
+              ;; Some heuristic here for guessing.
+              (if (= (count @dictionary) 1)
+                (new GuessWord (first @dictionary))
+                ;; Bidirectional map?
+                (let [letter->frequency
+                      (loop [words @dictionary
+                             letter->frequency (hash-map)]
+                        (if words
+                          (let [word (first words)
+                                letters (distinct word)]
+                            ;; Also think about zipmap here.
+                            (recur (next words)
+                                   (apply merge (cons letter->frequency (map (fn [letter] {letter (+ (get letter->frequency letter 0) 1)}) letters)))))
+                          letter->frequency))
+                      guessed-letters
+                      (map (fn [letter] (Character/toLowerCase letter)) (.getAllGuessedLetters game))
+                      letter->frequency
+                      (filter (fn [letter-frequency] (not (.contains guessed-letters (first letter-frequency)))) letter->frequency)
+                      frequency->letter
+                      (into (sorted-map-by >) (map-invert letter->frequency))]
+                  (println guessed-letters frequency->letter (take 100 @dictionary))
+                  ;; (println (difference (set [\f \a \c \t \u \a \l]) (map (fn [letter] (Character/toLowerCase letter)) (.getAllGuessedLetters game))))
+                  ;; (println (filter (fn [frequ])))
+                  ;; (println (second (first frequency->letter)))
+                  (new GuessLetter (second (first frequency->letter)))
+                  ;; (new GuessLetter (random-letter))
+                  )))))))
+    
+    (let [dictionary (make-dictionary "words.txt")
+          game (new HangmanGame "uniformed" 4)]
+      (run game (make-regex-strategy dictionary)))
     
   #+END_SRC
+
+  At some point, letter guesses don't give me any more information;
+  unless I do a diff on the words left. When words are fewer than
+  spaces, start guessing words?
+
+  [[http://clojure.org/data_structures#Data Structures-Maps (IPersistentMap)][Maps]]:
+
+  #+BEGIN_QUOTE
+  A Map is a collection that maps keys to values. Two different map
+  types are provided - hashed and sorted. Hash maps require keys that
+  correctly support hashCode and equals. Sorted maps require keys that
+  implement Comparable, or an instance of Comparator. Hash maps
+  provide faster access (log32N hops) vs (logN hops), but sorted maps
+  are, well, sorted. count is O(1). conj expects another (possibly
+  single entry) map as the item, and returns a new map which is the
+  old map plus the entries from the new, which may overwrite entries
+  of the old. conj also accepts a MapEntry or a vector of two items
+  (key and value). seq returns a sequence of map entries, which are
+  key/value pairs. Sorted map also supports rseq, which returns the
+  entries in reverse order. Maps implement IFn, for invoke() of one
+  argument (a key) with an optional second argument (a default value),
+  i.e. maps are functions of their keys. nil keys and values are ok.
+
+  Related functions
+  - Create a new map :: hash-map sorted-map sorted-map-by
+  - 'Change' a map :: assoc dissoc select-keys merge merge-with zipmap
+  - Examine a map :: get contains? find keys vals map?
+  - Examine a map entry :: key val
+  #+END_QUOTE
+
 * TODO Regex then trie
 # <<regex-then-tries>>
   Let's work with a regex solution that treats the words holistically
