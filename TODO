@@ -18,6 +18,8 @@
     (assert (= {2 4} (assoc (assoc {} 2 3) 2 4)))
   #+END_SRC
 * TODO We are assuming that the dictionary is lower-case.
+* DONE Extract some game mechanics into hangman.core.
+  CLOSED: [2011-08-18 Thu 03:56]
 * TODO Check TODO.pdf into the repository as documentation?
   It goes against checking derivative things in; maybe we can generate
   it for releases. Here's a [[http://stackoverflow.com/questions/1431082/programmatically-add-files-to-a-github-download-page][half-ass discussion]]; 'tis true, though,
@@ -73,6 +75,7 @@
     (defn can-keep-guessing?
       ([game] (= (.gameStatus game) HangmanGame$Status/KEEP_GUESSING)))
     
+    ;;; We should abstract some of this into hangman.core.
     (defn run
       ([game strategy]
          ;; Can also just wrap this in with-open, since
