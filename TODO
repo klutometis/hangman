@@ -26,7 +26,8 @@
   that PDF is a PS-derivative and, as such, is not wholly binary.
 * TODO Regex-based GuessingStrategy
   (New pseudo-code syntax, by the way: parenthesized phrases are
-  potential optizimations; bracketed phrases are commentary.)
+  potential optizimations; bracketed phrases are commentary. Also:
+  TODOs are full sentences with full stop.)
 
   #+BEGIN_SRC org
     ,- Create dictionary.
