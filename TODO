@@ -802,6 +802,60 @@
   give you much new information. Aiming for half-half lets your
   correct and incorrect guesses both contribute information.
   #+END_QUOTE  
+
+  Position:
+
+  #+BEGIN_QUOTE
+  My strategy is optimized not to guess wrong. After only 5 guesses (2
+  right and 3 wrong) it had narrowed the search space down to exactly
+  1 word. This is because I prune by position not just by presence of
+  letter so even successful guesses on a popular letter can still
+  effectively decrease the search space. Your approach would be
+  improved with this strategy as well. I don't think the opportunities
+  stop there.
+  #+END_QUOTE
+
+  #+BEGIN_QUOTE
+  Note that there might be other ways to score each possible
+  next-letter guess. Number of non-empty buckets comes to mind as an
+  "average case" measure (to be maximized). Again, this is all
+  assuming we're minimizing the total number of guesses. That way, all
+  of the possible outcomes are (i.e., the guessed letter appears or
+  doesn't appear in the word) are treated the same. To minimize the
+  number of wrong guesses, you have to treat the "doesn't appear in
+  the word" outcome differently and weight things in some better way.
+  #+END_QUOTE
+
+  Regex should account for position, shouldn't it?
+
+  #+BEGIN_QUOTE
+  Now let's assume we were going with 'eclectic'. There were 9,638
+  words in my dictionary with a length of 8. The letter that appeared
+  in the most of those words was the letter 'e' at 6,666. Note that I
+  didn't count total occurrences of 'e' but only 1 per word. This
+  equated to 69%. Now what I set out to do was map the different ways
+  the letter 'e' appeared across those 6,666 words. In the word
+  'eclectic' it appears in positions 1 and 4 where as in 'envelope' it
+  appears in positions 1, 4 and 8. After guessing and seeing which
+  positions were filled in, I could even eliminate words with letter
+  'e' even if they shared the common position because they didn't
+  share all positions. That last part (all positions) was the piece I
+  hadn't considered in my previous exercise. So here is the mind
+  blowing part. The most common set of positions across the 6,666
+  words with the letter 'e' still had less than 1,600 possible
+  words. This means that by selecting the letter 'e' (69% chance of
+  being right) I will reduce the candidate list from 9,638 to less
+  than 1,600 (and probably a lot further). It seemed pointless then to
+  come up with some weights for determining letter based on
+  probability of being correct and degree to which the candidate list
+  is reduced because the "dumb" method was still doing a superb job.
+
+  I do have one last final revision to make. I choose the letter that
+  appears in the most candidate words but I don't break
+  ties. Currently it is the result of sort. I plan to add total count
+  as a secondary tie breaking condition to see if that improves
+  results. I should post something later today.
+  #+END_QUOTE
 * Description
 ** The Goal
 
