@@ -260,11 +260,12 @@
     
     ;;; This gives 173529 (including the blank word).
     (time
-     (binding [*in* (reader "words.txt")]
-       (loop [word (read-line) words '()]
-         (if word
-           (recur (read-line) (cons word words))
-           (count words)))))
+     (with-open [dictionary (reader "words.txt")]
+       (binding [*in* dictionary]
+         (loop [word (read-line) words '()]
+           (if word
+             (recur (read-line) (cons word words))
+             (count words))))))
     
     ;;; This is slightly slower than `loop'; gives the right result,
     ;;; though.
