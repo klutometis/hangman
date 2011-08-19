@@ -1,4 +1,23 @@
 # -*- org -*-
+* DONE Does the sorted-map-by comparator have access to the values as well?
+  CLOSED: [2011-08-19 Fri 02:41]
+  - CLOSING NOTE [2011-08-19 Fri 02:41] \\
+    Apparently not
+  #+BEGIN_SRC clojure
+    (assert (= "3 2"
+               (with-out-str
+                 (sorted-map-by
+                  (fn [x y] (print (format "%s %s" x y)) true) 2 \a 3 \b))))
+  #+END_SRC
+* DONE How do maps behave with key-collision?
+  CLOSED: [2011-08-19 Fri 02:41]
+  - CLOSING NOTE [2011-08-19 Fri 02:41] \\
+    Replacement
+  #+BEGIN_SRC clojure
+    (assert (= {2 4} (assoc (assoc (hash-map) 2 3) 2 4)))
+    (assert (= {2 4} (assoc (assoc {} 2 3) 2 4)))
+  #+END_SRC
+* TODO We are assuming that the dictionary is lower-case.
 * TODO Check TODO.pdf into the repository as documentation?
   It goes against checking derivative things in; maybe we can generate
   it for releases. Here's a [[http://stackoverflow.com/questions/1431082/programmatically-add-files-to-a-github-download-page][half-ass discussion]]; 'tis true, though,
