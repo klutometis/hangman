@@ -1,6 +1,7 @@
 # -*- org -*-
 * TODO `run' should return the score and total time.
-  Are we going to have to parse the output of =time=, somehow?
+  Are we going to have to parse the output of =time=, somehow? Or,
+  just coöpt the [[http://stackoverflow.com/questions/3041299/how-to-benchmark-functions-in-clojure][time]] macro.
 * DONE Does the sorted-map-by comparator have access to the values as well?
   CLOSED: [2011-08-19 Fri 02:41]
   - CLOSING NOTE [2011-08-19 Fri 02:41] \\
