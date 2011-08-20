@@ -179,8 +179,35 @@
   unless I do a diff on the words left. When words are fewer than
   spaces, start guessing words?
 
-  [[http://clojure.org/data_structures#Data Structures-Maps (IPersistentMap)][Maps]]:
+  #+BEGIN_SRC R
+    standard.scores <- c(25, 9, 5, 9, 8, 25, 7, 5, 5, 4, 2, 11, 5, 5, 5)
+    
+    my.scores <- c(25, 8, 7, 9, 10, 25, 7, 5, 5, 4, 3, 10, 5, 7, 13)
+    
+    my.times <- c(914.201401,
+                  624.136794,
+                  457.645472,
+                  1164.972,
+                  854.34475,
+                  98.380223,
+                  950.42491,
+                  132.590102,
+                  387.955044,
+                  403.945935,
+                  246.297455,
+                  548.420537,
+                  603.323457,
+                  276.769557,
+                  640.156031)
+    
+    ## chisq.test(standard.scores, my.scores)
+    summary(standard.scores)
+    summary(my.scores)
+    summary(my.times)
+    
+  #+END_SRC
 
+* TODO Maps
   #+BEGIN_QUOTE
   A Map is a collection that maps keys to values. Two different map
   types are provided - hashed and sorted. Hash maps require keys that
@@ -203,7 +230,6 @@
   - Examine a map :: get contains? find keys vals map?
   - Examine a map entry :: key val
   #+END_QUOTE
-
 * TODO Regex then trie
 # <<regex-then-tries>>
   Let's work with a regex solution that treats the words holistically
