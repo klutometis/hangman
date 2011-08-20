@@ -85,6 +85,8 @@
       (let [letter (+ (rand-int 26) 97)]
         (char letter)))
     
+    ;;; This should filter out words containing incorrectly-guessed
+    ;;; letters.
     (defn negative-regex [game]
       (let [incorrectly-guessed-letters (.getIncorrectlyGuessedLetters game)]
         (if (empty? incorrectly-guessed-letters)
@@ -124,17 +126,46 @@
                       (filter (fn [letter-frequency] (not (.contains guessed-letters (first letter-frequency)))) letter->frequency)
                       frequency->letter
                       (into (sorted-map-by >) (map-invert letter->frequency))]
-                  (println guessed-letters frequency->letter (take 100 @dictionary))
-                  ;; (println (difference (set [\f \a \c \t \u \a \l]) (map (fn [letter] (Character/toLowerCase letter)) (.getAllGuessedLetters game))))
-                  ;; (println (filter (fn [frequ])))
-                  ;; (println (second (first frequency->letter)))
-                  (new GuessLetter (second (first frequency->letter)))
-                  ;; (new GuessLetter (random-letter))
-                  )))))))
+                  (new GuessLetter (second (first frequency->letter))))))))))
     
-    (let [dictionary (make-dictionary "words.txt")
-          game (new HangmanGame "uniformed" 4)]
-      (run game (make-regex-strategy dictionary)))
+    ;;; Our algorithm is still deterministic, so we can make these kinds
+    ;;; of assertions.
+    (assert
+     (= (let [dictionary (make-dictionary "words.txt")]
+          (reduce (fn [word->score word]
+                    (let [game (new HangmanGame word 4)]
+                      (assoc word->score word (run game (make-regex-strategy dictionary)))))
+                  (sorted-map)
+                  '("comaker"
+                    "cumulative"
+                    "eruptive"
+                    "factual"
+                    "monadism"
+                    "mus"
+                    "nagging"
+                    "oses"
+                    "remembered"
+                    "spodumenes"
+                    "stereoisomers"
+                    "toxics"
+                    "trichromats"
+                    "triose"
+                    "uniformed")))
+        {"comaker" 25,
+         "cumulative" 8,
+         "eruptive" 7,
+         "factual" 9,
+         "monadism" 10,
+         "mus" 25,
+         "nagging" 7,
+         "oses" 5,
+         "remembered" 5,
+         "spodumenes" 4,
+         "stereoisomers" 3,
+         "toxics" 10,
+         "trichromats" 5,
+         "triose" 7,
+         "uniformed" 13}))
     
   #+END_SRC
 
