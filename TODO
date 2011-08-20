@@ -24,6 +24,9 @@
   It goes against checking derivative things in; maybe we can generate
   it for releases. Here's a [[http://stackoverflow.com/questions/1431082/programmatically-add-files-to-a-github-download-page][half-ass discussion]]; 'tis true, though,
   that PDF is a PS-derivative and, as such, is not wholly binary.
+
+  We can .gitignore =TODO.pdf=, such that we only check it in "when we
+  really mean it."
 * TODO Regex-based GuessingStrategy
   (New pseudo-code syntax, by the way: parenthesized phrases are
   potential optizimations; bracketed phrases are commentary. Also:
