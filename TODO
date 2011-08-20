@@ -777,7 +777,7 @@
   Also:
 
   #+BEGIN_QUOTE
-  Your regex should look more like this: '^e[^e][^e][^e][^e]e[^e]$'.
+  Your regex should look more like this: =^e[^e][^e][^e][^e]e[^e]$=.
   #+END_QUOTE
 
   Good call.
