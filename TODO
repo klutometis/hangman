@@ -498,34 +498,9 @@
     
   #+END_SRC
 
-* TODO Maps
-  #+BEGIN_QUOTE
-  A Map is a collection that maps keys to values. Two different map
-  types are provided - hashed and sorted. Hash maps require keys that
-  correctly support hashCode and equals. Sorted maps require keys that
-  implement Comparable, or an instance of Comparator. Hash maps
-  provide faster access (log32N hops) vs (logN hops), but sorted maps
-  are, well, sorted. count is O(1). conj expects another (possibly
-  single entry) map as the item, and returns a new map which is the
-  old map plus the entries from the new, which may overwrite entries
-  of the old. conj also accepts a MapEntry or a vector of two items
-  (key and value). seq returns a sequence of map entries, which are
-  key/value pairs. Sorted map also supports rseq, which returns the
-  entries in reverse order. Maps implement IFn, for invoke() of one
-  argument (a key) with an optional second argument (a default value),
-  i.e. maps are functions of their keys. nil keys and values are ok.
-
-  Related functions
-  - Create a new map :: hash-map sorted-map sorted-map-by
-  - 'Change' a map :: assoc dissoc select-keys merge merge-with zipmap
-  - Examine a map :: get contains? find keys vals map?
-  - Examine a map entry :: key val
-  #+END_QUOTE
-* TODO Regex then trie
-# <<regex-then-tries>>
-  Let's work with a regex solution that treats the words holistically
-  (i.e. as strings); if we can beat regex with some sort of trie:
-  great.
+  According to profiling, it appears as though the code is spending a
+  some time in =contains=: can't be the =.contains= in the
+  letter-filtering code, can it? A mere O(26 + n) per move.
 * DONE Separate java and clojure dirs under src?
   CLOSED: [2011-08-18 Thu 01:59]
   Could accomplish this with =:source-path= and =:java-source-path=.
@@ -706,6 +681,128 @@
     included into package — it's much easier to distribute such
     packages to end users.
   #+END_QUOTE
+* CANCELED call-cc
+  CLOSED: [2011-08-22 Mon 19:34]
+  Unlike the scheme example (which depends heavily on mutation) runs
+  to the very end of the list.
+
+  #+BEGIN_SRC clojure
+    (use 'clojure.contrib.monads)
+    (run-cont (call-cc (fn [k] (k 2))))
+    (defn generate-one-element-at-a-time [list]
+      (defn control-state [return]
+        (doseq [element list]
+          (def return
+            (call-cc
+             (fn [resume-here]
+               (def control-state resume-here)
+               (return element)))))
+        (return 'fuck-this-shit))
+      (defn generator []
+        (call-cc control-state))
+      generator)
+    
+    (def generate-digit (generate-one-element-at-a-time '(0 1 2)))
+    (run-cont (generate-digit))
+    
+  #+END_SRC
+
+  See [[http://repository.readscheme.org/ftp/papers/PLoP2001_dferguson0_1.pdf][call/cc patterns]]; same here:
+
+  #+BEGIN_SRC clojure
+    (use 'clojure.contrib.monads)
+    
+    (defn generate-one-element-at-a-time [list]
+      (def control-state
+        (atom
+         (fn [return]
+           (let [return (atom return)]
+             (doseq [element list]
+               (swap!
+                return
+                (fn [return]
+                  (call-cc
+                   (fn [resume-here]
+                     (swap! control-state
+                            (fn [control-state] resume-here))
+                     (return element)))))))
+           (return 'fuck-this-shit))))
+      (defn generator []
+        (call-cc @control-state))
+      generator)
+    
+    (def generate-digit (generate-one-element-at-a-time '(0 1 2)))
+    (run-cont (generate-digit))
+    
+  #+END_SRC
+
+  We need a different pattern (see continuation monads in Haskell)
+  that doesn't rely on mutating state variables?
+
+  From [[http://en.wikibooks.org/wiki/Haskell/Continuation_passing_style][CPS in Haskell]]:
+
+  #+BEGIN_SRC clojure
+    (use 'clojure.contrib.monads
+         'clojure.contrib.math)
+    
+    ((fn [n] (run-cont (call-cc (fn [k] (k (* n n)))))) 2)
+    
+    ;; (def continuation nil)
+    
+    ;; (defn incrementer [x]
+    ;;   (fn [k]
+    ;;     (loop [x (+ x 1)]
+    ;;       (def continuation k)
+    ;;       (recur x))))
+    
+    ;; (def i (incrementer 1))
+    ;; (run-cont i)
+    
+    (def continuation nil)
+    
+    (run-cont
+     (domonad cont-m
+              [x (m-result 1)
+               y (call-cc (fn [c] (def continuation c) (c 2)))]
+              (+ x y)))
+    
+    (run-cont (continuation 5))
+    (run-cont (continuation 42))
+    (run-cont (continuation -1))
+  #+END_SRC
+
+  #+BEGIN_SRC scheme
+    ;; [LISTOF X] -> ( -> X u 'you-fell-off-the-end)
+    (define (generate-one-element-at-a-time lst)
+      
+      ;; Hand the next item from a-list to "return" or an end-of-list marker
+      (define (control-state return)
+        (for-each 
+         (lambda (element)
+           (set! return (call-with-current-continuation
+                         (lambda (resume-here)
+                           ;; Grab the current continuation
+                           (set! control-state resume-here)
+                           (return element)))))
+         lst)
+        (return 'you-fell-off-the-end))
+      
+      ;; (-> X u 'you-fell-off-the-end)
+      ;; This is the actual generator, producing one item from a-list at a time
+      (define (generator)
+        (call-with-current-continuation control-state)) 
+      
+      ;; Return the generator 
+      generator)
+    
+    (define generate-digit
+      (generate-one-element-at-a-time '(0 1 2 3 4 5 6 7 8 9)))
+    
+    (generate-digit)
+    (generate-digit)
+    
+  #+END_SRC
+
 * CANCELED Continuations
   CLOSED: [2011-08-18 Thu 01:53]
   Someone did [[https://github.com/swannodette/delimc][delimited continuations]].
