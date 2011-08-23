@@ -359,6 +359,10 @@
      :average-delta-score 0.8666667,
      :average-percent-change-score 0.196532}
   #+END_SRC
+
+  And with this latest change =re-seq= is now the biggest consumer
+  (behind =swank.util.concurrent.mbox$receive.invoke=; is that an
+  artifact of using swank, however?).
 * DONE Separate java and clojure dirs under src?
   CLOSED: [2011-08-18 Thu 01:59]
   Could accomplish this with =:source-path= and =:java-source-path=.
