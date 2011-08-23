@@ -1307,6 +1307,8 @@
   as a secondary tie breaking condition to see if that improves
   results. I should post something later today.
   #+END_QUOTE
+* Threading and de-structuring
+  [[http://java.dzone.com/clojuretips][Interesting tips]]; as well as: =assoc=-reduction.
 * Description
 ** The Goal
 
