@@ -283,7 +283,7 @@
     
     (defn average-vals [data key]
       (let [vals (map key (vals data))]
-        (/ (reduce + data) (count data))))
+        (float (/ (reduce + vals) (count vals)))))
     
     (pprint
      (let [dictionary (make-dictionary "words.txt")]
@@ -307,11 +307,12 @@
              average-delta-score (average-vals data :delta-score)
              average-percent-change-time (average-vals data :percent-change-time)
              average-percent-change-score (average-vals data :percent-change-score)]
-         {:data data
+         {:data (into (sorted-map) data)
           :average-delta-time average-delta-time
           :average-percent-change-time average-percent-change-time
           :average-delta-score average-delta-score
           :average-percent-change-score average-percent-change-score})))
+    
   #+END_SRC
 
   At some point, letter guesses don't give me any more information;
@@ -337,6 +338,16 @@
 
   Jesus: taking out =distinct= saves almost =%50=; it causes certain
   words to fail, on the other hand.
+
+  Here are the results from removing =distinct= (time in
+  milliseconds):
+
+  #+BEGIN_SRC clojure
+    {:average-delta-time -283.85242,
+     :average-percent-change-time -0.4640968,
+     :average-delta-score 1.4666667,
+     :average-percent-change-score 0.296532}
+  #+END_SRC
 
   #+BEGIN_SRC clojure	
     (use '[clojure.contrib.io :only (reader)]
