@@ -62,6 +62,45 @@
     The `time-not-value' macro; cf. `[[https://github.com/clojure/clojure/blob/f86db9cc68773dd3e4a166c1ff7b81e4a98aa602/src/clj/clojure/core.clj#L2959][time]]'.
   Are we going to have to parse the output of =time=, somehow? Or,
   just coöpt the [[http://stackoverflow.com/questions/3041299/how-to-benchmark-functions-in-clojure][time]] macro.
+
+  #+BEGIN_SRC clojure
+    (defmacro time-not-value
+      [expr]
+      `(let [start# (. System (nanoTime))]
+         ~expr
+         (/ (double (- (. System (nanoTime)) start#)) 1000000.0)))
+    
+  #+END_SRC
+* DONE Maps
+  CLOSED: [2011-08-22 Mon 14:47]
+  #+BEGIN_QUOTE
+  A Map is a collection that maps keys to values. Two different map
+  types are provided - hashed and sorted. Hash maps require keys that
+  correctly support hashCode and equals. Sorted maps require keys that
+  implement Comparable, or an instance of Comparator. Hash maps
+  provide faster access (log32N hops) vs (logN hops), but sorted maps
+  are, well, sorted. count is O(1). conj expects another (possibly
+  single entry) map as the item, and returns a new map which is the
+  old map plus the entries from the new, which may overwrite entries
+  of the old. conj also accepts a MapEntry or a vector of two items
+  (key and value). seq returns a sequence of map entries, which are
+  key/value pairs. Sorted map also supports rseq, which returns the
+  entries in reverse order. Maps implement IFn, for invoke() of one
+  argument (a key) with an optional second argument (a default value),
+  i.e. maps are functions of their keys. nil keys and values are ok.
+
+  Related functions
+  - Create a new map :: hash-map sorted-map sorted-map-by
+  - 'Change' a map :: assoc dissoc select-keys merge merge-with zipmap
+  - Examine a map :: get contains? find keys vals map?
+  - Examine a map entry :: key val
+  #+END_QUOTE
+* DONE Regex then trie
+  CLOSED: [2011-08-22 Mon 14:48]
+# <<regex-then-tries>>
+  Let's work with a regex solution that treats the words holistically
+  (i.e. as strings); if we can beat regex with some sort of trie:
+  great.
 * DONE Does the sorted-map-by comparator have access to the values as well?
   CLOSED: [2011-08-19 Fri 02:41]
   - CLOSING NOTE [2011-08-19 Fri 02:41] \\
