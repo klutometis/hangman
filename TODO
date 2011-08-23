@@ -324,6 +324,20 @@
 
   ([[http://java.dzone.com/clojuretips][#_]] is a removal macro like =#;=, by the way.)
 
+  =jvisualvm= reveals that =clojure.lang.Util.hash()= is eating most
+  of the processing time; thoughts for optimizing this?
+
+  We have about 1.3M =Objects=, and 0.9M =TreeMap$Entries=; not to
+  mention 0.5M =Strings=, 0.4M =Conses= and 0.16M =TreeMaps=. Hmm. Are
+  these sets orthogonal?
+
+  It looks like -- oh, shit: =distinct= is taking a lot of time;
+  followed by: =hash=, =re-seq=, =filter=, =seq=, =re-matcher=,
+  etc. So we do have a lot of regular expression time.
+
+  Jesus: taking out =distinct= saves almost =%50=; it causes certain
+  words to fail, on the other hand.
+
   #+BEGIN_SRC clojure	
     (use '[clojure.contrib.io :only (reader)]
          '[clojure.contrib.string :only (replace-str)]
