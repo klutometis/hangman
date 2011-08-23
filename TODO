@@ -1,5 +1,65 @@
 # -*- org -*-
-* TODO `run' should return the score and total time.
+* TODO Oh, shit: and don't forget about parallelization.
+  The regex-based, filtering guessing-strategy is susceptible to
+  parallelization; isn't it? See [[http://stackoverflow.com/questions/2622750/why-does-clojure-hang-after-having-performed-my-calculations][this]], though:
+
+  #+BEGIN_QUOTE
+  About pfilter, it should work but run slower than filter, since your
+  predicate is simple. Parallelization isn't free so you have to give
+  each thread moderately intensive tasks to offset the multithreading
+  overhead. Batch your items before filtering them.
+  #+END_QUOTE
+* TODO Trie based guessing strategy
+  Generate trie at startup; break links as a filtering mechanism (have
+  to copy the datastructure, therefore). Trie of cardinality 26
+  corresponding to $a \to z$; normally used for prefix matching. Can
+  we really beat (the more general) regex by iteration?
+
+  See Bagwell's [[http://lampwww.epfl.ch/papers/idealhashtrees.pdf][Ideal Hash Tries]], by the way.
+
+  An initial implementation could use nested =hash-sets= or
+  =sorted-sets=; why not arrays of cardinality 26, though? They might
+  be sparse, and we have to do key-iteration on unknown letters. Let's
+  compare hash-set-, sorted-set-, hash-map-, sorted-map- and
+  vector-based implementations. Let's start with vector.
+
+  How do we reject candidates: sentinel at leaves? Segregate tries by
+  cardinality and check depth?
+
+  That's right, though: tries need to be of cardinality 26 + 1 to
+  account for sentinels.
+
+  Let's do hash-tables; they're more general, though. Otherwise: we
+  have to do the character -> index mapping (which is a form of
+  hashing, by the way).
+
+  We need: =insert= and =search=; let's do this utterly ad-hoc to
+  strings; such that we can insert and search for strings. Let's even
+  formalize the =_=-as-wildcard mechanism.
+
+  Question between vectors and hash-tables comes down to whether
+  linear search over the vector-cardinality is longer than
+  key-retrieval for the latter (I suspect that it is, by the way, in
+  addition to being a pain-in-the-ass).
+
+  And this all before we've done any profiling; hmm. =jvisualvm=
+  didn't yield anything interesting (that I could determine). Manual
+  profiling, on the other hand, revealed that the application of =merge=
+  over map-dyads is expense; reduction over =assoc= yielded ten
+  percent savings.
+
+* TODO We are assuming that the dictionary is lower-case.
+* TODO Check TODO.pdf into the repository as documentation?
+  It goes against checking derivative things in; maybe we can generate
+  it for releases. Here's a [[http://stackoverflow.com/questions/1431082/programmatically-add-files-to-a-github-download-page][half-ass discussion]]; 'tis true, though,
+  that PDF is a PS-derivative and, as such, is not wholly binary.
+
+  We can .gitignore =TODO.pdf=, such that we only check it in "when we
+  really mean it."
+* DONE `run' should return the score and total time.
+  CLOSED: [2011-08-22 Mon 20:13]
+  - CLOSING NOTE [2011-08-22 Mon 20:13] \\
+    The `time-not-value' macro; cf. `[[https://github.com/clojure/clojure/blob/f86db9cc68773dd3e4a166c1ff7b81e4a98aa602/src/clj/clojure/core.clj#L2959][time]]'.
   Are we going to have to parse the output of =time=, somehow? Or,
   just coöpt the [[http://stackoverflow.com/questions/3041299/how-to-benchmark-functions-in-clojure][time]] macro.
 * DONE Does the sorted-map-by comparator have access to the values as well?
