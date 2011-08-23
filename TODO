@@ -170,7 +170,7 @@
               HangmanGame$Status)
             'java.lang.Character)
     
-        ;;; Possible optimization: sort by arity.
+    ;;; Possible optimization: sort by arity.
     (defn make-dictionary [dictionary-file]
       (with-open [dictionary-input (reader dictionary-file)]
         (binding [*in* dictionary-input]
@@ -185,8 +185,8 @@
       (let [letter (+ (rand-int 26) 97)]
         (char letter)))
     
-        ;;; This should filter out words containing incorrectly-guessed
-        ;;; letters.
+    ;;; This should filter out words containing incorrectly-guessed
+    ;;; letters.
     (defn negative-regex [game]
       (let [incorrectly-guessed-letters (.getIncorrectlyGuessedLetters game)]
         (if (empty? incorrectly-guessed-letters)
@@ -215,6 +215,7 @@
                              letter->frequency (hash-map)]
                         (if words
                           (let [word (first words)
+                                ;; `distinct' was here.
                                 letters word]
                             ;; Also think about zipmap here.
                             (recur (next words)
@@ -233,7 +234,7 @@
                       (into (sorted-map-by >) (map-invert letter->frequency))]
                   (new GuessLetter (second (first frequency->letter))))))))))
     
-        ;;; Modify this to return time and value!
+    ;;; Modify this to return time and value!
     (defmacro time-and-value [expr]
       `(let [start# (. System (nanoTime))
              ret# ~expr]
@@ -260,7 +261,7 @@
     (def reference-scores
       '(25 9 5 9 8 25 7 5 5 4 2 11 5 5 5))
     
-        ;;; From the initial implementation.
+    ;;; From the initial implementation.
     (def initial-scores
       '(25 8 7 9 10 25 7 5 5 4 3 10 5 7 13))
     
@@ -349,177 +350,15 @@
      :average-percent-change-score 0.296532}
   #+END_SRC
 
-  #+BEGIN_SRC clojure	
-    (use '[clojure.contrib.io :only (reader)]
-         '[clojure.contrib.string :only (replace-str)]
-         'hangman.core
-         '[clojure.set :only (difference map-invert)]
-         'clojure.contrib.profile)
-    
-    (import '(com.factual.hangman
-              GuessingStrategy
-              GuessLetter
-              GuessWord
-              HangmanGame
-              HangmanGame$Status)
-            'java.lang.Character)
-    
-        ;;; Possible optimization: sort by arity.
-    (defn make-dictionary [dictionary-file]
-      (with-open [dictionary-input (reader dictionary-file)]
-        (binding [*in* dictionary-input]
-          ;; I would use read-lines here, but I've run into stack
-          ;; overflows.
-          (loop [word (read-line) words '()]
-            (if word
-              (recur (read-line) (cons word words))
-              words)))))
-    
-    (defn random-letter []
-      (let [letter (+ (rand-int 26) 97)]
-        (char letter)))
-    
-        ;;; This should filter out words containing incorrectly-guessed
-        ;;; letters.
-    (defn negative-regex [game]
-      (let [incorrectly-guessed-letters (.getIncorrectlyGuessedLetters game)]
-        (if (empty? incorrectly-guessed-letters)
-          "[a-z]"
-          (format "[^%s]" (new String (char-array (.getIncorrectlyGuessedLetters game)))))))
-    
-    (defn make-regex-strategy [dictionary]
-      (let [dictionary (atom dictionary)]
-        (reify
-          GuessingStrategy
-          (nextGuess [_ game]
-            (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
-                  negative-regex (negative-regex game)
-                  filtering-regex (format "^%s$"(replace-str "-" negative-regex guessed-so-far))
-                  filtering-pattern (re-pattern filtering-regex)]
-              (swap!
-               dictionary
-               (fn [dictionary]
-                 (filter (fn [word] (re-seq filtering-pattern word)) dictionary)))
-              ;; Some heuristic here for guessing.
-              (if (= (count @dictionary) 1)
-                (new GuessWord (first @dictionary))
-                ;; Bidirectional map?
-                (let [letter->frequency
-                      (loop [words @dictionary
-                             letter->frequency {}]
-                        (if words
-                          (let [word (first words)
-                                letters (distinct word)]
-                            ;; Also think about zipmap here.
-                            (recur (next words)
-                                   (reduce
-                                    (fn [letter frequency]
-                                      (assoc letter->frequency
-                                        letter
-                                        (+ (letter->frequency letter 0) 1)))
-                                    letter->frequency)))
-                          letter->frequency))
-                      guessed-letters
-                      (map (fn [letter] (Character/toLowerCase letter)) (.getAllGuessedLetters game))
-                      letter->frequency
-                      (filter (fn [letter-frequency] (not (.contains guessed-letters (first letter-frequency)))) letter->frequency)
-                      frequency->letter
-                      (into (sorted-map-by >) (map-invert letter->frequency))]
-                  (new GuessLetter (second (first frequency->letter))))))))))
-    
-        ;;; Our algorithm is still deterministic, so we can make these kinds
-        ;;; of assertions.
-    ;; (profile
-    ;;  (assert
-    ;;   (= (let [dictionary (make-dictionary "words.txt")]
-    ;;        (reduce (fn [word->score word]
-    ;;                  (let [game (new HangmanGame word 4)]
-    ;;                    (assoc word->score word (run game (make-regex-strategy dictionary)))))
-    ;;                (sorted-map)
-    ;;                '("comaker"
-    ;;                  "cumulative"
-    ;;                  "eruptive"
-    ;;                  "factual"
-    ;;                  "monadism"
-    ;;                  "mus"
-    ;;                  "nagging"
-    ;;                  "oses"
-    ;;                  "remembered"
-    ;;                  "spodumenes"
-    ;;                  "stereoisomers"
-    ;;                  "toxics"
-    ;;                  "trichromats"
-    ;;                  "triose"
-    ;;                  "uniformed")))
-    ;;      {"comaker" 25,
-    ;;       "cumulative" 8,
-    ;;       "eruptive" 7,
-    ;;       "factual" 9,
-    ;;       "monadism" 10,
-    ;;       "mus" 25,
-    ;;       "nagging" 7,
-    ;;       "oses" 5,
-    ;;       "remembered" 5,
-    ;;       "spodumenes" 4,
-    ;;       "stereoisomers" 3,
-    ;;       "toxics" 10,
-    ;;       "trichromats" 5,
-    ;;       "triose" 7,
-    ;;       "uniformed" 13})))
-    
-    (let [dictionary (make-dictionary "words.txt")]
-      (reduce (fn [word->score word]
-                (let [game (new HangmanGame word 4)]
-                  (assoc word->score word (run game (make-regex-strategy dictionary)))))
-              (sorted-map)
-              '("comaker"
-                "cumulative"
-                "eruptive"
-                "factual"
-                "monadism"
-                "mus"
-                "nagging"
-                "oses"
-                "remembered"
-                "spodumenes"
-                "stereoisomers"
-                "toxics"
-                "trichromats"
-                "triose"
-                "uniformed")))
-  #+END_SRC
+  With distinct, there is only a nominal (10%) difference in
+  =:average-percent-change-score=:
 
-  #+BEGIN_SRC R
-    standard.scores <- c(25, 9, 5, 9, 8, 25, 7, 5, 5, 4, 2, 11, 5, 5, 5)
-    
-    my.scores <- c(25, 8, 7, 9, 10, 25, 7, 5, 5, 4, 3, 10, 5, 7, 13)
-    
-    my.times <- c(914.201401,
-                  624.136794,
-                  457.645472,
-                  1164.972,
-                  854.34475,
-                  98.380223,
-                  950.42491,
-                  132.590102,
-                  387.955044,
-                  403.945935,
-                  246.297455,
-                  548.420537,
-                  603.323457,
-                  276.769557,
-                  640.156031)
-    
-    ## chisq.test(standard.scores, my.scores)
-    summary(standard.scores)
-    summary(my.scores)
-    summary(my.times)
-    
+  #+BEGIN_SRC clojure
+    {:average-delta-time -79.898224,
+     :average-percent-change-time -0.111338414,
+     :average-delta-score 0.8666667,
+     :average-percent-change-score 0.196532}
   #+END_SRC
-
-  According to profiling, it appears as though the code is spending a
-  some time in =contains=: can't be the =.contains= in the
-  letter-filtering code, can it? A mere O(26 + n) per move.
 * DONE Separate java and clojure dirs under src?
   CLOSED: [2011-08-18 Thu 01:59]
   Could accomplish this with =:source-path= and =:java-source-path=.
