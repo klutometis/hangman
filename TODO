@@ -159,7 +159,8 @@
          '[clojure.contrib.string :only (replace-str)]
          'hangman.core
          '[clojure.set :only (difference map-invert)]
-         '[clojure.contrib.math :only (abs)])
+         '[clojure.contrib.math :only (abs)]
+         '[clojure.pprint :only (pprint)])
     
     (import '(com.factual.hangman
               GuessingStrategy
@@ -169,7 +170,7 @@
               HangmanGame$Status)
             'java.lang.Character)
     
-    ;;; Possible optimization: sort by arity.
+        ;;; Possible optimization: sort by arity.
     (defn make-dictionary [dictionary-file]
       (with-open [dictionary-input (reader dictionary-file)]
         (binding [*in* dictionary-input]
@@ -184,8 +185,8 @@
       (let [letter (+ (rand-int 26) 97)]
         (char letter)))
     
-    ;;; This should filter out words containing incorrectly-guessed
-    ;;; letters.
+        ;;; This should filter out words containing incorrectly-guessed
+        ;;; letters.
     (defn negative-regex [game]
       (let [incorrectly-guessed-letters (.getIncorrectlyGuessedLetters game)]
         (if (empty? incorrectly-guessed-letters)
@@ -214,7 +215,7 @@
                              letter->frequency (hash-map)]
                         (if words
                           (let [word (first words)
-                                letters (distinct word)]
+                                letters word]
                             ;; Also think about zipmap here.
                             (recur (next words)
                                    (reduce (fn [letter->frequency letter]
@@ -232,49 +233,12 @@
                       (into (sorted-map-by >) (map-invert letter->frequency))]
                   (new GuessLetter (second (first frequency->letter))))))))))
     
-    ;;; Our algorithm is still deterministic, so we can make these kinds
-    ;;; of assertions.
-    #_(assert
-     (= (let [dictionary (make-dictionary "words.txt")]
-          (reduce (fn [word->score word]
-                    (let [game (new HangmanGame word 4)]
-                      (assoc word->score word (run game (make-regex-strategy dictionary)))))
-                  (sorted-map)
-                  '("comaker"
-                    "cumulative"
-                    "eruptive"
-                    "factual"
-                    "monadism"
-                    "mus"
-                    "nagging"
-                    "oses"
-                    "remembered"
-                    "spodumenes"
-                    "stereoisomers"
-                    "toxics"
-                    "trichromats"
-                    "triose"
-                    "uniformed")))
-        {"comaker" 25,
-         "cumulative" 8,
-         "eruptive" 7,
-         "factual" 9,
-         "monadism" 10,
-         "mus" 25,
-         "nagging" 7,
-         "oses" 5,
-         "remembered" 5,
-         "spodumenes" 4,
-         "stereoisomers" 3,
-         "toxics" 10,
-         "trichromats" 5,
-         "triose" 7,
-         "uniformed" 13}))
-    
-    (defmacro time-not-value [expr]
-      `(let [start# (. System (nanoTime))]
-         ~expr
-         (/ (double (- (. System (nanoTime)) start#)) 1000000.0)))
+        ;;; Modify this to return time and value!
+    (defmacro time-and-value [expr]
+      `(let [start# (. System (nanoTime))
+             ret# ~expr]
+         [(/ (double (- (. System (nanoTime)) start#)) 1000000.0)
+          ret#]))
     
     (def words
       '("comaker"
@@ -293,7 +257,13 @@
         "triose"
         "uniformed"))
     
-    ;;; From the initial implementation.
+    (def reference-scores
+      '(25 9 5 9 8 25 7 5 5 4 2 11 5 5 5))
+    
+        ;;; From the initial implementation.
+    (def initial-scores
+      '(25 8 7 9 10 25 7 5 5 4 3 10 5 7 13))
+    
     (def initial-times
       '(914.201401
         624.136794
@@ -311,13 +281,37 @@
         276.769557
         640.156031))
     
-    (let [dictionary (make-dictionary "words.txt")]
-      (let [times
-            (map #(time-not-value
-                   (run (new HangmanGame % 4) (make-regex-strategy dictionary))) words)]
-        (zipmap words (map #(let [delta (- %2 %1)]
-                              [delta (/ (abs delta) %1)]) initial-times times))))
+    (defn average-vals [data key]
+      (let [vals (map key (vals data))]
+        (/ (reduce + data) (count data))))
     
+    (pprint
+     (let [dictionary (make-dictionary "words.txt")]
+       (let [time-scores
+             (map #(time-and-value
+                    (run (new HangmanGame % 4) (make-regex-strategy dictionary))) words)
+             data
+             (zipmap words (map (fn [initial-time
+                                     reference-score
+                                     [time score]]
+                                  (let [delta-time (- time initial-time)
+                                        delta-score (- score reference-score)]
+                                    (let [percent-change-time (/ delta-time initial-time)
+                                          percent-change-score (float (/ delta-score reference-score))]
+                                      {:delta-time delta-time
+                                       :percent-change-time percent-change-time
+                                       :delta-score delta-score
+                                       :percent-change-score percent-change-score})))
+                                initial-times reference-scores time-scores))
+             average-delta-time (average-vals data :delta-time)
+             average-delta-score (average-vals data :delta-score)
+             average-percent-change-time (average-vals data :percent-change-time)
+             average-percent-change-score (average-vals data :percent-change-score)]
+         {:data data
+          :average-delta-time average-delta-time
+          :average-percent-change-time average-percent-change-time
+          :average-delta-score average-delta-score
+          :average-percent-change-score average-percent-change-score})))
   #+END_SRC
 
   At some point, letter guesses don't give me any more information;
