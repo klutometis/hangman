@@ -48,6 +48,10 @@
   over map-dyads is expense; reduction over =assoc= yielded ten
   percent savings.
 
+  Let's do a stack-based traversal of the tree (depth-first; I wonder:
+  will depth- or breadth-first make a difference?); a wild-card adds
+  all letters to the traversal stack. As soon as we encounter a letter
+  that doesn't exist, we can sever the tie; can't we?
 * TODO We are assuming that the dictionary is lower-case.
 * TODO Check TODO.pdf into the repository as documentation?
   It goes against checking derivative things in; maybe we can generate
@@ -181,6 +185,17 @@
               (recur (read-line) (cons word words))
               words)))))
     
+    (defn make-arity->dictionary [dictionary-file]
+      (with-open [dictionary-input (reader dictionary-file)]
+        (binding [*in* dictionary-input]
+          (loop [word (read-line)
+                 arity->dictionary {}]
+            (if word
+              (let [arity (count word)]
+                (recur (read-line)
+                       (assoc arity->dictionary arity (cons word (arity->dictionary arity '())))))
+              arity->dictionary)))))
+    
     (defn random-letter []
       (let [letter (+ (rand-int 26) 97)]
         (char letter)))
@@ -287,10 +302,13 @@
         (float (/ (reduce + vals) (count vals)))))
     
     (pprint
-     (let [dictionary (make-dictionary "words.txt")]
+     (let [arity->dictionary (make-arity->dictionary "words.txt")]
        (let [time-scores
              (map #(time-and-value
-                    (run (new HangmanGame % 4) (make-regex-strategy dictionary))) words)
+                    (run (new HangmanGame % 4)
+                         (make-regex-strategy
+                          (arity->dictionary (count %) '()))))
+                  words)
              data
              (zipmap words (map (fn [initial-time
                                      reference-score
@@ -363,6 +381,18 @@
   And with this latest change =re-seq= is now the biggest consumer
   (behind =swank.util.concurrent.mbox$receive.invoke=; is that an
   artifact of using swank, however?).
+
+  Wow, by implementing the =arity->dictionary= preprocessing, I was
+  able to get an average 70% efficiency:
+
+  #+BEGIN_SRC clojure
+    {:average-delta-time -353.4292,
+     :average-percent-change-time -0.6696512,
+     :average-delta-score 1.4666667,
+     :average-percent-change-score 0.296532}
+  #+END_SRC
+
+  Too bad the score still sucks.
 * DONE Separate java and clojure dirs under src?
   CLOSED: [2011-08-18 Thu 01:59]
   Could accomplish this with =:source-path= and =:java-source-path=.
