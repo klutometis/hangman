@@ -52,6 +52,69 @@
   will depth- or breadth-first make a difference?); a wild-card adds
   all letters to the traversal stack. As soon as we encounter a letter
   that doesn't exist, we can sever the tie; can't we?
+
+** DONE Is comparing chars faster than comparing ints?
+   CLOSED: [2011-08-23 Tue 21:06]
+   - CLOSING NOTE [2011-08-23 Tue 21:06] \\
+     It turns out they're roughly the same (roughly 500 msecs).
+   #+BEGIN_SRC clojure
+     (time (reduce = (replicate 1000000 \a)))
+     (time (reduce = (replicate 1000000 1)))
+   #+END_SRC
+** DONE Test that mutating shallow clones of HashMaps does not mutate clonee.
+   CLOSED: [2011-08-23 Tue 21:08]
+   - CLOSING NOTE [2011-08-23 Tue 21:08] \\
+     It is indeed the case.
+   #+BEGIN_SRC clojure
+     (let [hash-map (new java.util.HashMap)]
+       (. hash-map put "a" 1)
+       (. hash-map put "b" 2)
+       (let [hash-map-clone (. hash-map clone)]
+         (. hash-map-clone remove "a")
+         (assert (= {"a" 1 "b" 2} (into {} hash-map)))))
+   #+END_SRC
+** TODO Trie from word
+   #+BEGIN_SRC clojure
+     ;;; Can we keep them as transients? We have to copy and mutate them
+     ;;; later on, though.
+     
+     ;;; The weird thing about this is that it ends on an empty hashmap as
+     ;;; a form of sentinel.
+     (let [trie (new java.util.HashMap)
+           word "harro"]
+       (reduce (fn [trie letter]
+                 ;; Ugly; what's the idiom: chaining? if-let?
+                 (let [subtrie (. trie get letter)
+                       subtrie (if subtrie subtrie (new java.util.HashMap))]
+                   (. trie put letter subtrie)
+                   subtrie))
+               trie
+               word)
+       trie)
+     
+   #+END_SRC
+** TODO Trie from dictionary
+   #+BEGIN_SRC clojure
+     (use '[clojure.contrib.io :only (reader)])
+     
+     ;;; We're not going to be able to transient this, because all subtries
+     ;;; will have to be transient and persisted, too; unless we do a
+     ;;; nested persistence.
+     (defn make-trie-dictionary [file]
+       (with-open [input (reader file)]
+         (binding [*in* input]
+           (let [trie (transient {})]
+             (loop [word (read-line)]
+               (if word
+                 (do
+                   
+                   (recur
+                    (read-line)))
+                 (persistent! trie)))))))
+     
+     (make-trie-dictionary "words.txt")
+     
+   #+END_SRC
 * TODO We are assuming that the dictionary is lower-case.
 * TODO Check TODO.pdf into the repository as documentation?
   It goes against checking derivative things in; maybe we can generate
@@ -217,6 +280,7 @@
                   negative-regex (negative-regex game)
                   filtering-regex (format "^%s$"(replace-str "-" negative-regex guessed-so-far))
                   filtering-pattern (re-pattern filtering-regex)]
+              ;; Would in-place filtering work here?
               (swap!
                dictionary
                (fn [dictionary]
@@ -392,7 +456,15 @@
      :average-percent-change-score 0.296532}
   #+END_SRC
 
-  Too bad the score still sucks.
+  Too bad the score still sucks; besides =seq= now, [[http://pacific.mpi-cbg.de/javadoc/clojure/lang/Util.html#hash(java.lang.Object)][hash]] still
+  consumes the most time: some kind of object comparison? Is
+  [[http://clojuredocs.org/clojure_core/1.2.0/clojure.core/hash][clojure.core/hash]] the same as Java's =hashCode=? Possibly.
+
+  We might want to try in-place filtering, since =seq= gets called a
+  lot; we should do some manual profiling at this point, possibly,
+  though, to determine where the lion's share of time is taken up.
+
+  I want to give tries a try, though.
 * DONE Separate java and clojure dirs under src?
   CLOSED: [2011-08-18 Thu 01:59]
   Could accomplish this with =:source-path= and =:java-source-path=.
