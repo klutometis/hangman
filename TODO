@@ -246,6 +246,16 @@
        (debug (reduce merge-tries {} (list word1 word2 word3)))
        (debug (reduce merge-tries {} (list word1 word2 word3))))
      
+     (defn calculate-frequencies
+       ([trie]
+          (calculate-frequencies (transient (vec (replicate 26 0))) trie))
+       ([frequencies trie]
+          (doseq [key (keys trie)]
+            ;; (debug key)
+            (assoc! frequencies key (inc (frequencies key)))
+            (calculate-frequencies frequencies (trie key)))
+          frequencies)) 
+     
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
      ;;; correct, though; and we haven't even tackled the question of a
      ;;; frequency tree (can it be calculated once, at the beginning, or
@@ -259,16 +269,31 @@
      ;;; oh: that's because we're using (first (keys ...)), isn't it?
      ;;;
      ;;; Ok, solved it: 200k words takes 2.2 seconds; Hephaiste!
-     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))]
-       (time (reduce (fn [trie word] (merge-tries trie (plumb (sorted-map) word)))
-                     (sorted-map) words))
-       'done)
+     ;;;
+     ;;; Damn: calculating the frequencies is about 500ms on a 200k trie;
+     ;;; let's try precalculating (whether by duplicate trie or
+     ;;; node-record).
+     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
+           trie (reduce (fn [trie word] (merge-tries trie (plumb (sorted-map) word)))
+                        (sorted-map) words)]
+       (time (persistent! (calculate-frequencies trie))))
      
    #+END_SRC
 
    We're going to have a huge space penalty for using tries, by the
    way, that you don't have with strings, apparently; there's this
    whole node-object that comes along with sequences.
+
+   Should we start thinking about an accompanying frequency tree? Or
+   maybe just a record-payload with each node? Two trees require
+   synchronization and replicates the edge-overhead (records, the
+   record-overhead).
+
+   One thing to think about is that we only need the max frequency;
+   can we just search the tree seven or eight times? Let's get some
+   times on tree-search. The argument about max frequency is really
+   just an argument about space-time tradeoff. As we saw previously,
+   keeping a 26-ary vector on each node was prohibitively much space.
 ** TODO Trie from dictionary
    We could trie every word and do a merge-reduction on the root to
    avoid mutation; expensive? Also, I'd like to keep track of
