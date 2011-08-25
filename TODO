@@ -207,6 +207,84 @@
 
    As opposed to packing a letter/histogram in the same node, let's
    have two orthogonal tries: frequency-trie and letter-trie.
+
+   In terms of a functional algorithm for building trees from words:
+   some sort of reduction which works from the bottom up.
+
+   #+BEGIN_SRC clojure
+     (use 'clojure.contrib.trace)
+     
+     (defn plumb [trie word]
+       (if word
+         (let [letter (first word)]
+           (assoc (trie letter {}) letter (plumb trie (next word))))
+         word))
+     
+     ;;; Same until we diverge (or nil); merge and bail out. That for each
+     ;;; of mergendum's keys, I think.
+     (defn merge-tries [mergens mergendum]
+       ;; Have to do some kind of null check here.
+       (cond (not mergens) mergendum
+             (not mergendum) mergens
+             :else (let [mergens-key (first (keys mergens))
+                         mergendum-key (first (keys mergendum))]
+                     (if (= mergens-key mergendum-key)
+                       (assoc mergens (first (keys mergendum))
+                              (merge-tries (mergens (first (keys mergendum)))
+                                           (mergendum (first (keys mergendum)))))
+                       (assoc mergens mergendum-key (mergendum mergendum-key))))))
+     
+     ;;; Really what we need to do is a recursive merge of some sort: the
+     ;;; problem is, we have to account for all keys; including ones which
+     ;;; are currently different and future divergence, too. Ouch.
+     ;;;
+     ;;; No, that's not the case (although I wonder if we could dynamically
+     ;;; program this to avoid exponential complexity): the problem is a
+     ;;; multi-key mergens with a single-key mergendum. Therefore, the
+     ;;; first-key hack should abide (, dude).
+     (defn merge-tries [mergens mergendum]
+       #_ (debug mergens mergendum)
+       (cond (or (not mergens) (empty? mergens)) mergendum
+             (or (not mergendum) (empty? mergendum)) mergens
+             :else (let [mergendum-key (first (keys mergendum))
+                         submergens (mergens mergendum-key)
+                         submergendum (mergendum mergendum-key)]
+                     #_ (debug mergendum-key
+                               submergens
+                               submergendum)
+                     (if (mergendum mergendum-key)
+                       (assoc mergens mergendum-key
+                              (merge-tries submergens submergendum))
+                       (assoc mergens mergendum-key
+                              (mergendum mergendum-key))))))
+     
+     #_ (let [word1 (plumb {} '(1 2 3 4 5))
+           word2 (plumb {} '(1 2 3 7 8))
+           word3 (plumb {} '(9 2 3 7 8))]
+       (debug (reduce merge-tries {} (list word1 word2 word3)))
+       (debug (reduce merge-tries {} (list word1 word2 word3))))
+     
+     ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
+     ;;; correct, though; and we haven't even tackled the question of a
+     ;;; frequency tree (can it be calculated once, at the beginning, or
+     ;;; progressively?)).
+     ;;;
+     ;;; Yeah: I don't think we have the whole tree: distinct reports, out
+     ;;; of 200k, 199998 distincts; and our chain doesn't look all that
+     ;;; deep.
+     ;;;
+     ;;; Interesting: we have all of the 0s, but only the last of 1--25;
+     ;;; oh: that's because we're using (first (keys ...)), isn't it?
+     (let [words (take 20000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))]
+       #_ (debug words)
+       (println (time (reduce (fn [trie word] (merge-tries trie (plumb (sorted-map) word)))
+                      (sorted-map) words))))
+     
+   #+END_SRC
+
+   We're going to have a huge space penalty for using tries, by the
+   way, that you don't have with strings, apparently; there's this
+   whole node-object that comes along with sequences.
 ** TODO Trie from dictionary
    We could trie every word and do a merge-reduction on the root to
    avoid mutation; expensive? Also, I'd like to keep track of
