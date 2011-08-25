@@ -1,6 +1,17 @@
 (ns hangman.core
   (:import (com.factual.hangman
-            HangmanGame$Status)))
+            HangmanGame$Status))
+  (:use clojure.contrib.pprint))
+
+(defmacro debug-map [& exprs]
+  `(zipmap (reverse (list ~@(map (fn [expr] `'~expr) exprs)))
+           (reverse (list ~@(map (fn [expr] expr) exprs)))))
+
+(defmacro debug-list [& exprs]
+  `(list ~@(map (fn [expr] `(list '~expr ~expr)) exprs)))
+
+(defmacro debug [& exprs]
+  `(pprint (debug-map ~@exprs)))
 
 (defn- can-keep-guessing?
   ([game] (= (.gameStatus game) HangmanGame$Status/KEEP_GUESSING)))
