@@ -250,7 +250,8 @@
          'hangman.core
          '[clojure.set :only (difference map-invert)]
          '[clojure.contrib.math :only (abs)]
-         '[clojure.pprint :only (pprint)])
+         '[clojure.pprint :only (pprint)]
+         'clojure.contrib.profile)
     
     (import '(com.factual.hangman
               GuessingStrategy
@@ -294,47 +295,54 @@
           "[a-z]"
           (format "[^%s]" (new String (char-array (.getIncorrectlyGuessedLetters game)))))))
     
+    (defn letter->frequency [words]
+      (loop [words words
+             letter->frequency (hash-map)]
+        (if words
+          (let [word (first words)
+                ;; `distinct' was here.
+                letters word]
+            ;; Also think about zipmap here.
+            (recur (next words)
+                   (reduce (fn [letter->frequency letter]
+                             (assoc letter->frequency
+                               letter
+                               (+ (letter->frequency letter 0) 1)))
+                           letter->frequency
+                           letters)))
+          letter->frequency)))
+    
     (defn make-regex-strategy [dictionary]
       (let [dictionary (atom dictionary)]
         (reify
           GuessingStrategy
           (nextGuess [_ game]
-            (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
-                  negative-regex (negative-regex game)
-                  filtering-regex (format "^%s$"(replace-str "-" negative-regex guessed-so-far))
-                  filtering-pattern (re-pattern filtering-regex)]
-              ;; Would in-place filtering work here?
-              (swap!
-               dictionary
-               (fn [dictionary]
-                 (filter (fn [word] (re-seq filtering-pattern word)) dictionary)))
-              ;; Some heuristic here for guessing.
-              (if (= (count @dictionary) 1)
-                (new GuessWord (first @dictionary))
-                ;; Bidirectional map?
-                (let [letter->frequency
-                      (loop [words @dictionary
-                             letter->frequency (hash-map)]
-                        (if words
-                          (let [word (first words)
-                                ;; `distinct' was here.
-                                letters word]
-                            ;; Also think about zipmap here.
-                            (recur (next words)
-                                   (reduce (fn [letter->frequency letter]
-                                             (assoc letter->frequency
-                                               letter
-                                               (+ (letter->frequency letter 0) 1)))
-                                           letter->frequency
-                                           letters)))
-                          letter->frequency))
-                      guessed-letters
-                      (map (fn [letter] (Character/toLowerCase letter)) (.getAllGuessedLetters game))
-                      letter->frequency
-                      (filter (fn [letter-frequency] (not (.contains guessed-letters (first letter-frequency)))) letter->frequency)
-                      frequency->letter
-                      (into (sorted-map-by >) (map-invert letter->frequency))]
-                  (new GuessLetter (second (first frequency->letter))))))))))
+            (prof
+             :next-guess
+             (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
+                   negative-regex (negative-regex game)
+                   filtering-regex (format "^%s$"(replace-str "-" negative-regex guessed-so-far))
+                   filtering-pattern (re-pattern filtering-regex)]
+               ;; Would in-place filtering work here?
+               (swap!
+                dictionary
+                (fn [dictionary]
+                  (prof :filter (filter (fn [word] (re-seq filtering-pattern word)) dictionary))))
+               ;; Some heuristic here for guessing.
+               (if (= (count @dictionary) 1)
+                 (new GuessWord (first @dictionary))
+                 ;; Bidirectional map?
+                 (let [letter->frequency
+                       (prof
+                        :letter->frequency
+                        (letter->frequency @dictionary))
+                       guessed-letters
+                       (map (fn [letter] (Character/toLowerCase letter)) (.getAllGuessedLetters game))
+                       letter->frequency
+                       (filter (fn [letter-frequency] (not (.contains guessed-letters (first letter-frequency)))) letter->frequency)
+                       frequency->letter
+                       (into (sorted-map-by >) (map-invert letter->frequency))]
+                   (new GuessLetter (second (first frequency->letter)))))))))))
     
     ;;; Modify this to return time and value!
     (defmacro time-and-value [expr]
@@ -388,7 +396,7 @@
       (let [vals (map key (vals data))]
         (float (/ (reduce + vals) (count vals)))))
     
-    (pprint
+    (profile
      (let [arity->dictionary (make-arity->dictionary "words.txt")]
        (let [time-scores
              (map #(time-and-value
