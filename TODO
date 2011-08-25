@@ -177,12 +177,15 @@
                trie
                word))
      
-     (trace hash-word!)
+     ;; (trace hash-word!)
      
-     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
-           trie (make-trie)]
-       (doseq [word words] (hash-word! trie word))
-       (persistent! (persistent-trie! trie)))
+     ;;; Ouch: hashing 200k words (without frequencies) takes 14 s!
+     (time
+      (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
+            trie (make-trie)]
+        (doseq [word words] (hash-word! trie word))
+        (persistent! (persistent-trie! trie))
+        "harro"))
      
      #_ (let [trie (make-trie)]
        (hash-word! trie [8 24 3 23 12 20 15])
