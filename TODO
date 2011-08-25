@@ -179,7 +179,14 @@
      
      ;; (trace hash-word!)
      
-     ;;; Ouch: hashing 200k words (without frequencies) takes 14 s!
+     ;;; Ouch: hashing 200k words (without frequencies) takes 14s! Not to
+     ;;; mention the fact that memory balooned up to 433M, including 31M of
+     ;;; PersistentVectors and 24M of TransientVectors plus 18M of
+     ;;; PersistentVector$Nodes; 8M of ints (but maybe that's not so bad).
+     ;;;
+     ;;; It would be nice if we could build this without going the
+     ;;; transient route; let's come up with a functional algorithm to do
+     ;;; so (and with maps, maybe, if the memory overhead is egregious).
      (time
       (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
             trie (make-trie)]
