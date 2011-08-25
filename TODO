@@ -53,6 +53,23 @@
   all letters to the traversal stack. As soon as we encounter a letter
   that doesn't exist, we can sever the tie; can't we?
 
+# <<node-histography>>
+
+  How are we going to do the letter->frequency histogram with a trie,
+  by the way? Doesn't it require a complete trie traversal? This
+  requires memory overhead, of course: but if each node in the trie
+  stored histography going down, we could delete the node and update
+  the histography immediately.
+
+  The storage required is probably pretty big, though: a 26-arity
+  vector for every vector. Or is there some kind of Huffman encoding
+  we could do? It is essentially a 26-ary Huffman encoding. (See
+  [[http://en.wikipedia.org/wiki/Huffman_coding#n-ary_Huffman_coding][n-ary Huffman coding]], btw.
+
+  Priority queue. Each node is an object containing: the next vector
+  down; a vector of frequencies for each letter down. There's got to
+  be a clever algorithm for this. How fast, though; and do we have
+  egregious initialization times?
 ** DONE Is comparing chars faster than comparing ints?
    CLOSED: [2011-08-23 Tue 21:06]
    - CLOSING NOTE [2011-08-23 Tue 21:06] \\
@@ -94,6 +111,12 @@
      
    #+END_SRC
 ** TODO Trie from dictionary
+   We could trie every word and do a merge-reduction on the root to
+   avoid mutation; expensive? Also, I'd like to keep track of
+   [[node-histography]].
+
+   Crafting this 
+
    #+BEGIN_SRC clojure
      (use '[clojure.contrib.io :only (reader)])
      
