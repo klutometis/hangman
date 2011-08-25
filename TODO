@@ -465,6 +465,84 @@
   though, to determine where the lion's share of time is taken up.
 
   I want to give tries a try, though.
+
+  One potential optimization is to do an initial letter-frequency
+  histogram and merely subtract the words that get filtered; maybe
+  you're quibbling over linear (i.e. micro) optizimations now, though.
+
+** DONE Is it slower to access char-based hash-tables than int-based vectors?
+   CLOSED: [2011-08-24 Wed 16:53]
+   - CLOSING NOTE [2011-08-24 Wed 16:54] \\
+     Vectors are an order of magnitude faster for large n; crossover is
+     roughly 1000000: some of that may have been due to garbage
+     collection, though. The int-based vector is only marginally more
+     efficient than the char->int-based vector, though: 210
+     ms. vs. 250 ms. for n = 1000000. There's probably some overhead
+     associated with transienting a vector, etc.
+     
+     One advantage of using tries is that it can be totally
+     vector-based with ints. (Don't even bother with arrays, by the
+     way; vide infra.)
+   #+BEGIN_SRC clojure
+     ;;; Use doall, etc. instead of loop to force evaluation? Otherwise, we
+     ;;; could just use (take (repeatedly #(rand-int 26))), etc.
+     (let [n 1000000
+           chars (loop [chars '()
+                        n n]
+                   (if (zero? n)
+                     chars
+                     (recur (cons (char (+ (rand-int 26) 97))
+                                  chars)
+                            (dec n))))
+           ints (loop [ints '()
+                       n n]
+                  (if (zero? n)
+                    ints
+                    (recur (cons (rand-int 26) ints)
+                           (dec n))))]
+       ;; Char-based map
+       (time
+        (reduce (fn [histogram char]
+                  (assoc histogram char (+ (histogram char 0) 1)))
+                {}
+                chars))
+     
+       ;; Char->int-based immutable vector
+       (time
+        (reduce (fn [vector char]
+                  (let [i (- (int char) 97)]
+                    (assoc vector i (+ (vector i) 1))))
+                (vec (replicate 26 0))
+                chars))
+     
+       ;; Char->int-based mutable vector
+       (time
+        (let [vector (transient (vec (replicate 26 0)))]
+          (doseq [char chars]
+            (let [i (- (int char) 97)]
+              (assoc! vector i (+ (vector i) 1))))
+          (persistent! vector)))
+     
+       ;; Int-based mutable vector
+       (time
+        (let [vector (transient (vec (replicate 26 0)))]
+          (doseq [int ints]
+            (assoc! vector int (+ (vector int) 1)))
+          (persistent! vector)))
+     
+       ;; Really fucking slow
+       (time
+        (let [array (into-array Integer/TYPE (replicate 26 0))]
+          (doseq [int ints]
+            (aset-int array int (+ (aget array int) 1)))
+          array)))
+     
+     ;; "Elapsed time: 897.958722 msecs"
+     ;; "Elapsed time: 223.132804 msecs"
+     ;; "Elapsed time: 245.723347 msecs"
+     ;; "Elapsed time: 207.313954 msecs"
+     ;; "Elapsed time: 13016.683057 msecs"
+   #+END_SRC
 * DONE Separate java and clojure dirs under src?
   CLOSED: [2011-08-18 Thu 01:59]
   Could accomplish this with =:source-path= and =:java-source-path=.
