@@ -110,6 +110,93 @@
        trie)
      
    #+END_SRC
+
+   We decided in the car to build the trie up from the leaves using a
+   forest of letters indexed by a vector; build it back up to root
+   (could also go the other way), adding things along the way. This is
+   arbitrary, since we're not doing prefix-stems here.
+
+   We're also going to deal with vectors of integers, not hashmaps of
+   chars; though the latter is a space-saving hack.
+
+   #+BEGIN_SRC clojure
+     (use 'clojure.contrib.trace)
+     
+     (reduce (fn [trie letter]
+               (let [subtrie (trie letter {})]
+                 (assoc trie letter subtrie)
+                 subtrie))
+             {}
+             "harro")
+     
+     (defn word->trie [trie word]
+       (loop [word word
+              trie trie]
+         (let [letter (first word)]
+           (if letter
+             (recur (next word)
+                    (assoc trie letter (trie letter {})))
+             trie))))
+     
+     (defn make-trie []
+       (transient (vec (repeat 26 nil))))
+     
+     ;; (trace make-trie)
+     
+     ;;; We can't iterate over the transient tree without persisting it;
+     ;;; but we can't mutate the tree once we've persisted it. Lazy
+     ;;; persistent tries?
+     (defn persistent-trie! [trie]
+       (if trie
+         (let [trie (persistent! trie)]
+           (doseq [subtrie trie]
+             (if subtrie
+               (persistent-trie! subtrie)))
+           trie)))
+     
+     (defn persistent-trie! [trie]
+       (if trie
+         (do
+           (let [n (count trie)]
+             (loop [i 0]
+               (if (< i n)
+                 (let [subtrie (trie i)]
+                   (if subtrie
+                     (do
+                       (persistent-trie! subtrie)
+                       (assoc! trie i (persistent! subtrie))))
+                   (recur (inc i)))))
+             trie))))
+     
+     (defn hash-word! [trie word]
+       (reduce (fn [trie letter]
+                 (let [subtrie (trie letter)
+                       subtrie (if subtrie subtrie (make-trie))]
+                   (assoc! trie letter subtrie)
+                   subtrie))
+               trie
+               word))
+     
+     (trace hash-word!)
+     
+     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
+           trie (make-trie)]
+       (doseq [word words] (hash-word! trie word))
+       (persistent! (persistent-trie! trie)))
+     
+     #_ (let [trie (make-trie)]
+       (hash-word! trie [8 24 3 23 12 20 15])
+       (persistent! (persistent-trie! trie)))
+     
+   #+END_SRC
+
+   To do this bottom-up approach, we're going to operate on words of
+   the same arity. We can't do that, though: not all leaves of value n
+   are the same because of the prefix-context. Can we count somehow
+   from the root down?
+
+   As opposed to packing a letter/histogram in the same node, let's
+   have two orthogonal tries: frequency-trie and letter-trie.
 ** TODO Trie from dictionary
    We could trie every word and do a merge-reduction on the root to
    avoid mutation; expensive? Also, I'd like to keep track of
