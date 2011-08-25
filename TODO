@@ -275,10 +275,12 @@
      ;;;
      ;;; Interesting: we have all of the 0s, but only the last of 1--25;
      ;;; oh: that's because we're using (first (keys ...)), isn't it?
-     (let [words (take 20000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))]
-       #_ (debug words)
-       (println (time (reduce (fn [trie word] (merge-tries trie (plumb (sorted-map) word)))
-                      (sorted-map) words))))
+     ;;;
+     ;;; Ok, solved it: 200k words takes 2.2 seconds; Hephaiste!
+     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))]
+       (time (reduce (fn [trie word] (merge-tries trie (plumb (sorted-map) word)))
+                     (sorted-map) words))
+       'done)
      
    #+END_SRC
 
