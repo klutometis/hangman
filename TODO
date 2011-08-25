@@ -220,20 +220,6 @@
            (assoc (trie letter {}) letter (plumb trie (next word))))
          word))
      
-     ;;; Same until we diverge (or nil); merge and bail out. That for each
-     ;;; of mergendum's keys, I think.
-     (defn merge-tries [mergens mergendum]
-       ;; Have to do some kind of null check here.
-       (cond (not mergens) mergendum
-             (not mergendum) mergens
-             :else (let [mergens-key (first (keys mergens))
-                         mergendum-key (first (keys mergendum))]
-                     (if (= mergens-key mergendum-key)
-                       (assoc mergens (first (keys mergendum))
-                              (merge-tries (mergens (first (keys mergendum)))
-                                           (mergendum (first (keys mergendum)))))
-                       (assoc mergens mergendum-key (mergendum mergendum-key))))))
-     
      ;;; Really what we need to do is a recursive merge of some sort: the
      ;;; problem is, we have to account for all keys; including ones which
      ;;; are currently different and future divergence, too. Ouch.
@@ -243,15 +229,11 @@
      ;;; multi-key mergens with a single-key mergendum. Therefore, the
      ;;; first-key hack should abide (, dude).
      (defn merge-tries [mergens mergendum]
-       #_ (debug mergens mergendum)
        (cond (or (not mergens) (empty? mergens)) mergendum
              (or (not mergendum) (empty? mergendum)) mergens
              :else (let [mergendum-key (first (keys mergendum))
                          submergens (mergens mergendum-key)
                          submergendum (mergendum mergendum-key)]
-                     #_ (debug mergendum-key
-                               submergens
-                               submergendum)
                      (if (mergendum mergendum-key)
                        (assoc mergens mergendum-key
                               (merge-tries submergens submergendum))
