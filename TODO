@@ -258,7 +258,6 @@
           (calculate-frequencies (transient (vec (replicate 26 0))) trie))
        ([frequencies trie]
           (doseq [key (keys trie)]
-            ;; (debug key)
             (assoc! frequencies key (inc (frequencies key)))
             (calculate-frequencies frequencies (trie key)))
           frequencies))
@@ -292,7 +291,6 @@
        ;; Be careful here: what about mistaking subsets for matching words?
        ;; We won't have to worry about this, for instance, if we can be
        ;; guaranteed to have the same arity. Let's make this assumption.
-       (debug 'search-trie trie word)
        (cond
         ;; What about matching the null-trie, though? Only the null-word
         ;; matches it.
@@ -301,10 +299,9 @@
         ;; and pass back the dissociated subtrie for modification of
         ;; counts?
         (not trie) false
-        (trie-sentinel? trie) trie
+        (trie-sentinel? trie) true
         :else
         (let [letter (first word)]
-          (debug letter)
           (search-trie (trie letter) (next word)))))
      
      (let [word1 '(1 2 3 4 5)
@@ -313,10 +310,10 @@
            trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
        (debug trie
               (count-trie trie)
-              ;; (search-trie trie word1)
-              ;; (search-trie trie word2)
-              ;; (search-trie trie word3)
-              (search-trie trie '(1 2 3 4 5))))
+              (search-trie trie word1)
+              (search-trie trie word2)
+              (search-trie trie word3)
+              (search-trie trie '(1 2 3 4 6))))
      
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
      ;;; correct, though; and we haven't even tackled the question of a
@@ -340,7 +337,7 @@
      ;;; Goes from 1.7 to 1.9 seconds to thread frequencies through plumb;
      ;;; and up again to 2.1 seconds when using a trie-sentinel instead of
      ;;; nil. 2.9 to take an initial count, by the way.
-     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
+     #_ (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
            frequencies (transient (vec (replicate 26 0)))
            trie (time (reduce (fn [trie word] (merge-tries trie (plumb word)))
                               {} words))]
