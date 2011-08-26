@@ -221,6 +221,11 @@
      (defn trie-sentinel? [object]
        (= object trie-sentinel))
      
+     (def wildcard (gensym))
+     
+     (defn wildcard? [object]
+       (= object wildcard))
+     
      (defn plumb
        ([word] (plumb {} word))
        ([trie word]
@@ -255,11 +260,11 @@
      ;;; for time-efficiency.
      (defn count-trie!
        ([trie]
-          (calculate-frequencies (transient (vec (replicate 26 0))) trie))
+          (count-trie! (transient (vec (replicate 26 0))) trie))
        ([frequencies trie]
           (doseq [key (keys trie)]
             (assoc! frequencies key (inc (frequencies key)))
-            (calculate-frequencies frequencies (trie key)))
+            (count-trie! frequencies (trie key)))
           frequencies))
      
      ;;; Really what we need to do is a recursive merge of some sort: the
@@ -304,16 +309,70 @@
         (let [letter (first word)]
           (search-trie (trie letter) (next word)))))
      
+     ;;; Do we effectively have to rebuild what matches? Also: we have to
+     ;;; figure out how to deal with wildcards: we're going to need to add
+     ;;; all letters to the search stack.
+     ;;;
+     ;;; Actually, this is not totally distinct from count-trie; we're
+     ;;; basically rebuilding the tree except for one disassociation. Ouch!
+     ;;; That's going to be ~3s for a 200k trie, isn't it?
+     ;;;
+     ;;; This is where it might pay to use mutation: we only have to pay a
+     ;;; penalty at the beginning for copying; we could even use
+     ;;; HashTable's clone method.
+     ;;;
+     ;;; Let's avoid an adjunct trie if at all possible! This entails
+     ;;; tautological self-merges on the trie, I believe.
+     ;;;
+     ;;; We should avoid running this on all wildcalds, of
+     ;;; course. (Negative result, by the way? Trying to beat regex.)
+     ;;;
+     ;;; Especially with wildcards, there may be many branches that we have
+     ;;; to filter out.
+     ;;;
+     ;;; For wildcards: dispatch on 26 search-and-dissocs.
+     (defn search-and-dissoc [trie word]
+       (if word
+         (let [letter (first word)
+               subtrie (trie letter)]
+           (if subtrie
+             (assoc trie letter (search-and-dissoc subtrie (next word)))
+             trie-sentinel))
+         trie))
+     
+     (defn search-and-dissoc [trie word]
+       (if word
+         (let [letter (first word)]
+           (if (wildcard? letter)
+             (reduce
+              (fn [trie letter]
+                (assoc trie letter (search-and-dissoc (trie letter) (next word))))
+              trie
+              (keys trie))
+             (let [subtrie (trie letter)]
+               (if subtrie
+                 (assoc trie letter (search-and-dissoc subtrie (next word)))
+                 trie-sentinel))))
+         trie))
+     
      (let [word1 '(1 2 3 4 5)
            word2 '(1 2 3 7 8)
            word3 '(9 2 3 7 8)
            trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
-       (debug trie
-              (count-trie trie)
-              (search-trie trie word1)
-              (search-trie trie word2)
-              (search-trie trie word3)
-              (search-trie trie '(1 2 3 4 6))))
+       (debug (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
+                               1 {2 {3 {7 {8 trie-sentinel},
+                                        4 {5 trie-sentinel}}}}}))
+              (assert (= (count-trie trie) ))
+              (assert (search-trie trie word1))
+              (assert (search-trie trie word2))
+              (assert (search-trie trie word3))
+              (assert (not (search-trie trie '(1 2 3 4 6))))
+              (assert (= (search-and-dissoc trie '(1 2 4))
+                         {9 {2 {3 {7 {8 trie-sentinel}}}},
+                          1 {2 trie-sentinel}}))
+              (assert (trie-sentinel? (search-and-dissoc trie '(2))))
+              (assert (= (search-and-dissoc trie `(~wildcard 2 4))
+                         {9 {2 trie-sentinel}, 1 {2 trie-sentinel}}))))
      
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
      ;;; correct, though; and we haven't even tackled the question of a
@@ -336,15 +395,22 @@
      ;;;
      ;;; Goes from 1.7 to 1.9 seconds to thread frequencies through plumb;
      ;;; and up again to 2.1 seconds when using a trie-sentinel instead of
-     ;;; nil. 2.9 to take an initial count, by the way.
+     ;;; nil. 2.9 to take an initial count, by the way. (This is where we
+     ;;; could save some time by doing a sampled count.)
      #_ (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
            frequencies (transient (vec (replicate 26 0)))
            trie (time (reduce (fn [trie word] (merge-tries trie (plumb word)))
                               {} words))]
-       #_ (time (persistent! (calculate-frequencies trie)))
-       #_ (calculate-frequencies trie)
-       (time (count-trie trie))
-       #_ (trie 0))
+       ;; A debug with time?
+       (debug
+        ;; (time (persistent! (calculate-frequencies trie)))
+        ;; (calculate-frequencies trie)
+        ;; (time (count-trie trie))
+        ;; (trie 0)
+        ;; (time (calculate-frequencies trie))
+        (time (count-trie trie))
+        (count-trie (time (search-and-dissoc trie '(1 2 3 4 5 6 7))))
+       ))
      
    #+END_SRC
 
@@ -419,6 +485,19 @@
    We're going to have to implement a search-and-dissoc that returns,
    I think, frequency-table of the dissociated subtrie (possibly
    empty).
+
+   Just a thought: are earlier letters more valuable? It seems like
+   the closer the letter is to the root, the more words it determines;
+   even though this seems anti-intuitive. No, I reject this: there
+   would be as many leaves as a filter-criterion as one root (out of
+   twenty six); prefix letters are more efficient, though, as a
+   filter-mechanism: we have to search for leaves.
+
+   Would, in that sense, that we had two views of the trie that were
+   inversions of each other: depending on a letter's proximity to the
+   prefix or suffix we could search from either end.
+
+   (Getting excited about this solution: Götter.)
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
