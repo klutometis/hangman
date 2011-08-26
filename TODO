@@ -340,6 +340,10 @@
              trie-sentinel))
          trie))
      
+     ;;; Ouch: don't forget that search-and-dissoc needs to return a list
+     ;;; of candidate words, too. Or is `leaves' a separate function? That
+     ;;; would be too bad: we're already doing the work here. It would be
+     ;;; nice if we could take care of frequency-propagation, too.
      (defn search-and-dissoc [trie word]
        (if word
          (let [letter (first word)]
@@ -355,6 +359,15 @@
                  trie-sentinel))))
          trie))
      
+     (defn get-words
+       ([trie] (words trie '() '()))
+       ([trie words word]
+          (if trie
+            (cons
+     
+             words)
+            word)))
+     
      (let [word1 '(1 2 3 4 5)
            word2 '(1 2 3 7 8)
            word3 '(9 2 3 7 8)
@@ -362,7 +375,8 @@
        (debug (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
                                1 {2 {3 {7 {8 trie-sentinel},
                                         4 {5 trie-sentinel}}}}}))
-              (assert (= (count-trie trie) ))
+              (assert (= (count-trie trie)
+                         {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
               (assert (search-trie trie word1))
               (assert (search-trie trie word2))
               (assert (search-trie trie word3))
@@ -410,7 +424,9 @@
         ;; (time (calculate-frequencies trie))
         (time (count-trie trie))
         (count-trie (time (search-and-dissoc trie '(1 2 3 4 5 6 7))))
+        (count-trie (time (search-and-dissoc trie `(1 2 ~wildcard 4 5 6 7))))
        ))
+     
      
    #+END_SRC
 
