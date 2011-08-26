@@ -416,7 +416,9 @@
    can't recurse on e.g. =(if letter ...)=; can we explicitly test for
    the end of vector? Index-based traversal, for instance.
 
-   
+   We're going to have to implement a search-and-dissoc that returns,
+   I think, frequency-table of the dissociated subtrie (possibly
+   empty).
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
