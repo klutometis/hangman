@@ -213,21 +213,29 @@
 
    #+BEGIN_SRC clojure
      (use 'clojure.contrib.trace
+          'clojure.contrib.singleton
           '[hangman.core :only (debug)])
      
-     (defn plumb [trie word]
-       (if word
-         (let [letter (first word)]
-           (assoc (trie letter {})
-             letter
-             (plumb trie
-                    (next word))))
-         word))
+     (def trie-sentinel (gensym))
+     
+     (defn trie-sentinel? [object]
+       (= object trie-sentinel))
+     
+     (defn plumb
+       ([word] (plumb {} word))
+       ([trie word]
+          (if word
+            (let [letter (first word)]
+              (assoc (trie letter {})
+                letter
+                (plumb trie
+                       (next word))))
+            trie-sentinel)))
      
      (defn count-trie
        ([trie] (count-trie {} trie))
        ([frequencies trie]
-          (if trie
+          (if (not (trie-sentinel? trie))
             (merge-with
              +
              frequencies
@@ -243,6 +251,18 @@
               (keys trie)))
             frequencies)))
      
+     ;;; Let's compare this transient-based implementation with the above
+     ;;; for time-efficiency.
+     (defn count-trie!
+       ([trie]
+          (calculate-frequencies (transient (vec (replicate 26 0))) trie))
+       ([frequencies trie]
+          (doseq [key (keys trie)]
+            ;; (debug key)
+            (assoc! frequencies key (inc (frequencies key)))
+            (calculate-frequencies frequencies (trie key)))
+          frequencies))
+     
      ;;; Really what we need to do is a recursive merge of some sort: the
      ;;; problem is, we have to account for all keys; including ones which
      ;;; are currently different and future divergence, too. Ouch.
@@ -252,8 +272,8 @@
      ;;; multi-key mergens with a single-key mergendum. Therefore, the
      ;;; first-key hack should abide (, dude).
      (defn merge-tries [mergens mergendum]
-       (cond (or (not mergens) (empty? mergens)) mergendum
-             (or (not mergendum) (empty? mergendum)) mergens
+       (cond (or (trie-sentinel? mergens) (empty? mergens)) mergendum
+             (or (trie-sentinel? mergendum) (empty? mergendum)) mergens
              :else (let [mergendum-key (first (keys mergendum))
                          submergens (mergens mergendum-key)
                          submergendum (mergendum mergendum-key)]
@@ -263,22 +283,40 @@
                        (assoc mergens mergendum-key
                               (mergendum mergendum-key))))))
      
-     (let [word1 (plumb {} '(1 2 3 4 5))
-           word2 (plumb {} '(1 2 3 7 8))
-           word3 (plumb {} '(9 2 3 7 8))]
-       (debug (reduce merge-tries {} (list word1 word2 word3)))
-       (debug (count-trie (reduce merge-tries {} (list word1 word2 word3)))))
+     ;;; Yikes: both trie and word are false in a match and mis-match; have
+     ;;; to distinguish between end-of-line and infix. We're going to need
+     ;;; some kind of sentinel, therefore, at the end of plumb. Why not the
+     ;;; word itself? That way, I don't have to thread it during
+     ;;; search. Space-complexity, though.
+     (defn search-trie [trie word]
+       ;; Be careful here: what about mistaking subsets for matching words?
+       ;; We won't have to worry about this, for instance, if we can be
+       ;; guaranteed to have the same arity. Let's make this assumption.
+       (debug 'search-trie trie word)
+       (cond
+        ;; What about matching the null-trie, though? Only the null-word
+        ;; matches it.
+        ;;
+        ;; This is where we'd have to modify trie, isn't it, with dissoc;
+        ;; and pass back the dissociated subtrie for modification of
+        ;; counts?
+        (not trie) false
+        (trie-sentinel? trie) trie
+        :else
+        (let [letter (first word)]
+          (debug letter)
+          (search-trie (trie letter) (next word)))))
      
-     ;;; Why the transients? Can't we do this functionally?
-     (defn calculate-frequencies
-       ([trie]
-          (calculate-frequencies (transient (vec (replicate 26 0))) trie))
-       ([frequencies trie]
-          (doseq [key (keys trie)]
-            ;; (debug key)
-            (assoc! frequencies key (inc (frequencies key)))
-            (calculate-frequencies frequencies (trie key)))
-          frequencies))
+     (let [word1 '(1 2 3 4 5)
+           word2 '(1 2 3 7 8)
+           word3 '(9 2 3 7 8)
+           trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
+       (debug trie
+              (count-trie trie)
+              ;; (search-trie trie word1)
+              ;; (search-trie trie word2)
+              ;; (search-trie trie word3)
+              (search-trie trie '(1 2 3 4 5))))
      
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
      ;;; correct, though; and we haven't even tackled the question of a
@@ -299,14 +337,17 @@
      ;;; node-record). (Down to about 500ms, by the way, when not using a
      ;;; sorted map.)
      ;;;
-     ;;; Goes from 1.7 to 1.9 seconds to thread frequencies through plumb.
-     #_ (let [words (take 20 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
+     ;;; Goes from 1.7 to 1.9 seconds to thread frequencies through plumb;
+     ;;; and up again to 2.1 seconds when using a trie-sentinel instead of
+     ;;; nil. 2.9 to take an initial count, by the way.
+     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
            frequencies (transient (vec (replicate 26 0)))
-           trie (time (reduce (fn [trie word] (merge-tries trie (plumb {} word)))
+           trie (time (reduce (fn [trie word] (merge-tries trie (plumb word)))
                               {} words))]
        #_ (time (persistent! (calculate-frequencies trie)))
        #_ (calculate-frequencies trie)
-       trie)
+       (time (count-trie trie))
+       #_ (trie 0))
      
    #+END_SRC
 
@@ -371,6 +412,14 @@
    Still need search and delete; can delete, for instance, identify
    the offending subtrie to prune so that we can pass it do
    =(merge-with - ...)=?
+
+   Ouch: we haven't tried matching paths with words; we could either
+   gather the word on the way down or attach it to the leaves. For
+   search we need some kind of wildcard signification: nil? Then we
+   can't recurse on e.g. =(if letter ...)=; can we explicitly test for
+   the end of vector? Index-based traversal, for instance.
+
+   
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
