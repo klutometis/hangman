@@ -212,13 +212,36 @@
    some sort of reduction which works from the bottom up.
 
    #+BEGIN_SRC clojure
-     (use 'clojure.contrib.trace)
+     (use 'clojure.contrib.trace
+          '[hangman.core :only (debug)])
      
      (defn plumb [trie word]
        (if word
          (let [letter (first word)]
-           (assoc (trie letter {}) letter (plumb trie (next word))))
+           (assoc (trie letter {})
+             letter
+             (plumb trie
+                    (next word))))
          word))
+     
+     (defn count-trie
+       ([trie] (count-trie {} trie))
+       ([frequencies trie]
+          (if trie
+            (merge-with
+             +
+             frequencies
+             (reduce
+              (fn [frequencies key]
+                (merge-with
+                 frequencies
+                 (count-trie frequencies (trie key))))
+              (let [keys (keys trie)]
+                (zipmap
+                 keys
+                 (replicate (count keys) 1)))
+              (keys trie)))
+            frequencies)))
      
      ;;; Really what we need to do is a recursive merge of some sort: the
      ;;; problem is, we have to account for all keys; including ones which
@@ -240,12 +263,13 @@
                        (assoc mergens mergendum-key
                               (mergendum mergendum-key))))))
      
-     #_ (let [word1 (plumb {} '(1 2 3 4 5))
+     (let [word1 (plumb {} '(1 2 3 4 5))
            word2 (plumb {} '(1 2 3 7 8))
            word3 (plumb {} '(9 2 3 7 8))]
        (debug (reduce merge-tries {} (list word1 word2 word3)))
-       (debug (reduce merge-tries {} (list word1 word2 word3))))
+       (debug (count-trie (reduce merge-tries {} (list word1 word2 word3)))))
      
+     ;;; Why the transients? Can't we do this functionally?
      (defn calculate-frequencies
        ([trie]
           (calculate-frequencies (transient (vec (replicate 26 0))) trie))
@@ -254,7 +278,7 @@
             ;; (debug key)
             (assoc! frequencies key (inc (frequencies key)))
             (calculate-frequencies frequencies (trie key)))
-          frequencies)) 
+          frequencies))
      
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
      ;;; correct, though; and we haven't even tackled the question of a
@@ -272,11 +296,17 @@
      ;;;
      ;;; Damn: calculating the frequencies is about 500ms on a 200k trie;
      ;;; let's try precalculating (whether by duplicate trie or
-     ;;; node-record).
-     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
-           trie (reduce (fn [trie word] (merge-tries trie (plumb (sorted-map) word)))
-                        (sorted-map) words)]
-       (time (persistent! (calculate-frequencies trie))))
+     ;;; node-record). (Down to about 500ms, by the way, when not using a
+     ;;; sorted map.)
+     ;;;
+     ;;; Goes from 1.7 to 1.9 seconds to thread frequencies through plumb.
+     #_ (let [words (take 20 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
+           frequencies (transient (vec (replicate 26 0)))
+           trie (time (reduce (fn [trie word] (merge-tries trie (plumb {} word)))
+                              {} words))]
+       #_ (time (persistent! (calculate-frequencies trie)))
+       #_ (calculate-frequencies trie)
+       trie)
      
    #+END_SRC
 
@@ -294,6 +324,60 @@
    times on tree-search. The argument about max frequency is really
    just an argument about space-time tradeoff. As we saw previously,
    keeping a 26-ary vector on each node was prohibitively much space.
+
+   Can we defer frequency counting until the merge; or, hell, can we
+   do it at plumb; and come up with some trivial mechanism for
+   updating the counts at merge? We still have to find a mechanism for
+   propagating the counts upward; or does it make sense to propagate
+   downward? Downward would be the most natural but least useful, I
+   think.
+
+   How would upward propagation work; and can we associate an integer
+   with the letter (which represents its count from the point down),
+   or do we need to have the full 26-ary vector? Also: can we just
+   maintain a priority queue (heap) of frequencies? I'd like to be
+   able to cheaply modify the frequencies on delete, though.
+
+   (The weird thing is, by the way, that we're doing a lot of integer
+   casting according to =jvisualvm=; there's no way to declare
+   =map-of= in the same way as we do =vector-of=, I imagine.)
+
+   If we don't maintain a 26-ary vector of frequencies for each node,
+   we're going to have to plumb the tree at the point of deletion,
+   anyway. But maintaining a 26-ary vector for each node is
+   prohibitively expensive, isn't it?
+
+   Merely the act of creating of creating a 26-ary vector for each
+   node brings the time for counting to 7000 ms from 500 ms for a 200k
+   list.
+
+   Can we at least maintain a frequency table with the tree which can
+   be modified by counting the subtree to be eliminated? Maybe we can
+   even build this table when merging. That way, we only have to count
+   the tree at most twice, I believe: once at creation and each
+   subtree at deletion.
+
+   Even visiting a 200k tree without doing any work requires 300
+   msecs, by the way. (Can we improve that?)
+
+   Check out =merge-with=, by the way; we could have used it for
+   =merge-trie=, but let's look at it for a quick calculations of
+   frequencies with =+=.
+
+   It looks like we're on track for separating the frequencies from
+   the table itself, and doing things like =(merge-with - frequencies
+   deleted-frequencies)=.
+
+   Still need search and delete; can delete, for instance, identify
+   the offending subtrie to prune so that we can pass it do
+   =(merge-with - ...)=?
+** TODO Probabilistic sampling for frequency?
+   Can we get a probabilistic idea of what the frequencies are by
+   sampling the tree? Doing an entire sample seems excessive; how do
+   we establish a reasonable N: the point at which (if ever) the
+   relative rations of letters seem to stabilize? Cf. spreading
+   activation: it simply sums over individual deltas and stops when a
+   certain threshold, epsilon, has been reached.
 ** TODO Trie from dictionary
    We could trie every word and do a merge-reduction on the root to
    avoid mutation; expensive? Also, I'd like to keep track of
