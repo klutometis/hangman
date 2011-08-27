@@ -360,33 +360,38 @@
          trie))
      
      (defn get-words
-       ([trie] (words trie '() '()))
+       ([trie] (get-words trie '() '()))
        ([trie words word]
-          (if trie
-            (cons
-     
-             words)
-            word)))
+          ;; (debug trie words word)
+          (if (trie-sentinel? trie)
+            (list word)
+            (reduce
+             (fn [words letter]
+               ;; (debug words letter (trie letter))
+               (concat (get-words (trie letter) words (cons letter word)) words))
+             '()
+             (keys trie)))))
      
      (let [word1 '(1 2 3 4 5)
            word2 '(1 2 3 7 8)
            word3 '(9 2 3 7 8)
            trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
-       (debug (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
-                               1 {2 {3 {7 {8 trie-sentinel},
-                                        4 {5 trie-sentinel}}}}}))
-              (assert (= (count-trie trie)
-                         {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
-              (assert (search-trie trie word1))
-              (assert (search-trie trie word2))
-              (assert (search-trie trie word3))
-              (assert (not (search-trie trie '(1 2 3 4 6))))
-              (assert (= (search-and-dissoc trie '(1 2 4))
-                         {9 {2 {3 {7 {8 trie-sentinel}}}},
-                          1 {2 trie-sentinel}}))
-              (assert (trie-sentinel? (search-and-dissoc trie '(2))))
-              (assert (= (search-and-dissoc trie `(~wildcard 2 4))
-                         {9 {2 trie-sentinel}, 1 {2 trie-sentinel}}))))
+       (debug ;; (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
+              ;;                  1 {2 {3 {7 {8 trie-sentinel},
+              ;;                           4 {5 trie-sentinel}}}}}))
+              ;; (assert (= (count-trie trie)
+              ;;            {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
+              ;; (assert (search-trie trie word1))
+              ;; (assert (search-trie trie word2))
+              ;; (assert (search-trie trie word3))
+              ;; (assert (not (search-trie trie '(1 2 3 4 6))))
+              ;; (assert (= (search-and-dissoc trie '(1 2 4))
+              ;;            {9 {2 {3 {7 {8 trie-sentinel}}}},
+              ;;             1 {2 trie-sentinel}}))
+              ;; (assert (trie-sentinel? (search-and-dissoc trie '(2))))
+              ;; (assert (= (search-and-dissoc trie `(~wildcard 2 4))
+              ;;            {9 {2 trie-sentinel}, 1 {2 trie-sentinel}}))
+              (get-words trie)))
      
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
      ;;; correct, though; and we haven't even tackled the question of a
@@ -411,7 +416,9 @@
      ;;; and up again to 2.1 seconds when using a trie-sentinel instead of
      ;;; nil. 2.9 to take an initial count, by the way. (This is where we
      ;;; could save some time by doing a sampled count.)
-     #_ (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
+     ;;;
+     ;;; Takes 1.1 seconds to retrieve 200k words.
+     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
            frequencies (transient (vec (replicate 26 0)))
            trie (time (reduce (fn [trie word] (merge-tries trie (plumb word)))
                               {} words))]
@@ -422,9 +429,10 @@
         ;; (time (count-trie trie))
         ;; (trie 0)
         ;; (time (calculate-frequencies trie))
-        (time (count-trie trie))
-        (count-trie (time (search-and-dissoc trie '(1 2 3 4 5 6 7))))
-        (count-trie (time (search-and-dissoc trie `(1 2 ~wildcard 4 5 6 7))))
+        ;; (time (count-trie trie))
+        ;; (count-trie (time (search-and-dissoc trie '(1 2 3 4 5 6 7))))
+        ;; (count-trie (time (search-and-dissoc trie `(1 2 ~wildcard 4 5 6 7))))
+        (count (time (get-words trie)))
        ))
      
      
