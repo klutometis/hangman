@@ -522,6 +522,16 @@
    prefix or suffix we could search from either end.
 
    (Getting excited about this solution: Götter.)
+
+   The operations are in place (insert, search, delete, frequencies,
+   leaves, etc.); but we're missing out on the main benefit of the
+   trie if we have to do these all sequentially:
+   i.e. search-and-dissoc should be able to update the frequency table
+   (resort to mutation or return multiple values?); get-words should
+   abandon the search after hitting a certain n; we can save a little
+   time by storing the words as sentinels so we don't have to =cons=
+   on the way down; we should resort to probabilistic sampling of the
+   letter-frequencies.
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
