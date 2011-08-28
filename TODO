@@ -214,7 +214,8 @@
    #+BEGIN_SRC clojure
      (use 'clojure.contrib.trace
           'clojure.contrib.singleton
-          '[hangman.core :only (debug)])
+          '[hangman.core :only (debug)]
+          '[clojure.contrib.io :only (reader)])
      
      (def trie-sentinel (gensym))
      
@@ -359,6 +360,27 @@
                  trie-sentinel))))
          trie))
      
+     (def wildcard-predicate (constantly true))
+     (defn positive-predicate [predicans]
+       (fn [predicandum] (= predicans predicandum)))
+     (defn negative-predicate [predicans]
+       (fn [predicandum] (not (= predicans predicandum))))
+     
+     (defn search-and-dissoc-predicate [trie predicates]
+       (if predicates
+         (let [predicate (first predicates)
+               letters (filter predicate (keys trie))]
+           (if (empty? letters)
+             trie-sentinel
+             (reduce
+              (fn [subtrie letter]
+                (assoc subtrie
+                  letter
+                  (search-and-dissoc-predicate (trie letter) (next predicates))))
+              {}
+              letters)))
+         trie))
+     
      (defn get-words
        ([trie] (get-words trie '() '()))
        ([trie words word]
@@ -376,22 +398,42 @@
            word2 '(1 2 3 7 8)
            word3 '(9 2 3 7 8)
            trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
-       (debug ;; (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
-              ;;                  1 {2 {3 {7 {8 trie-sentinel},
-              ;;                           4 {5 trie-sentinel}}}}}))
-              ;; (assert (= (count-trie trie)
-              ;;            {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
-              ;; (assert (search-trie trie word1))
-              ;; (assert (search-trie trie word2))
-              ;; (assert (search-trie trie word3))
-              ;; (assert (not (search-trie trie '(1 2 3 4 6))))
-              ;; (assert (= (search-and-dissoc trie '(1 2 4))
-              ;;            {9 {2 {3 {7 {8 trie-sentinel}}}},
-              ;;             1 {2 trie-sentinel}}))
-              ;; (assert (trie-sentinel? (search-and-dissoc trie '(2))))
-              ;; (assert (= (search-and-dissoc trie `(~wildcard 2 4))
-              ;;            {9 {2 trie-sentinel}, 1 {2 trie-sentinel}}))
-              (get-words trie)))
+       (debug
+        (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
+                         1 {2 {3 {7 {8 trie-sentinel},
+                                  4 {5 trie-sentinel}}}}}))
+        (assert (= (count-trie trie)
+                   {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
+        (assert (search-trie trie word1))
+        (assert (search-trie trie word2))
+        (assert (search-trie trie word3))
+        (assert (not (search-trie trie '(1 2 3 4 6))))
+        (assert (= (search-and-dissoc trie '(1 2 4))
+                   {9 {2 {3 {7 {8 trie-sentinel}}}},
+                    1 {2 trie-sentinel}}))
+        (assert (trie-sentinel? (search-and-dissoc trie '(2))))
+        (assert (= (search-and-dissoc trie `(~wildcard 2 4))
+                   {9 {2 trie-sentinel}, 1 {2 trie-sentinel}}))
+        (assert (=
+                 (search-and-dissoc-predicate
+                  trie
+                  [wildcard-predicate
+                   (positive-predicate 2)
+                   (positive-predicate 4)])
+                 {1 {2 trie-sentinel}, 9 {2 trie-sentinel}}))
+        (assert (= (get-words trie)
+                   '((5 4 3 2 1)
+                     (8 7 3 2 1)
+                     (8 7 3 2 9))))
+        (assert (= (search-and-dissoc-predicate
+                    trie
+                    [wildcard-predicate
+                     wildcard-predicate
+                     wildcard-predicate
+                     (negative-predicate 4)])
+                   {1 {2 {3 {7 {8 trie-sentinel}}}},
+                    9 {2 {3 {7 {8 trie-sentinel}}}}}))
+        ))
      
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
      ;;; correct, though; and we haven't even tackled the question of a
@@ -418,7 +460,7 @@
      ;;; could save some time by doing a sampled count.)
      ;;;
      ;;; Takes 1.1 seconds to retrieve 200k words.
-     (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
+     #_ (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
            frequencies (transient (vec (replicate 26 0)))
            trie (time (reduce (fn [trie word] (merge-tries trie (plumb word)))
                               {} words))]
