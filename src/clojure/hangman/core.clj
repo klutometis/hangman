@@ -3,11 +3,13 @@
             HangmanGame$Status))
   (:use clojure.contrib.pprint))
 
-(defmacro debug-map [& exprs]
+(defmacro debug-map
+  [& exprs]
   `(zipmap (reverse (list ~@(map (fn [expr] `'~expr) exprs)))
            (reverse (list ~@(map (fn [expr] expr) exprs)))))
 
-(defmacro debug-list [& exprs]
+(defmacro debug-list
+  [& exprs]
   `(list ~@(map (fn [expr] `(list '~expr ~expr)) exprs)))
 
 (defmacro debug [& exprs]

@@ -214,8 +214,15 @@
    #+BEGIN_SRC clojure
      (use 'clojure.contrib.trace
           'clojure.contrib.singleton
-          '[hangman.core :only (debug)]
+          ;; '[hangman.core :only (debug)]
+          'hangman.core
           '[clojure.contrib.io :only (reader)])
+     
+     (import '(com.factual.hangman
+               GuessingStrategy
+               GuessLetter
+               GuessWord
+               HangmanGame))
      
      (def trie-sentinel (gensym))
      
@@ -473,8 +480,18 @@
         ;; (time (calculate-frequencies trie))
         ;; (time (count-trie trie))
         ;; (count-trie (time (search-and-dissoc trie '(1 2 3 4 5 6 7))))
-        ;; (count-trie (time (search-and-dissoc trie `(1 2 ~wildcard 4 5 6 7))))
-        (count (time (get-words trie)))
+        (count-trie (time (search-and-dissoc trie `(1 2 ~wildcard 4 5 6 7))))
+        (get-words
+         (time (search-and-dissoc-predicate
+                trie
+                [(positive-predicate 1)
+                 (positive-predicate 2)
+                 (positive-predicate 3)
+                 (positive-predicate 4)
+                 (positive-predicate 5)
+                 (positive-predicate 6)
+                 (positive-predicate 7)])))
+        ;; (count (time (get-words trie)))
        ))
      
      ;;; Should we spend the time downcasing? It's an essential part of our
@@ -493,6 +510,11 @@
                (recur (read-line)
                       (merge-tries trie (plumb (string->word word))))
                trie)))))
+     
+     (defn make-trie-strategy [dictionary]
+       (reify
+         GuessingStrategy
+         (nextGuess [_ game])))
      
      #_ (let [trie (time (make-trie-dictionary "words.txt"))]
        (debug (time (count-trie trie))
@@ -617,7 +639,25 @@
 
    =search-and-dissoc= is a positive filtering device; but we need a
    negative device, too: =search-and-dissoc= should really dispatch on
-   a vector, say, of predicates. This flexibility comes at a cost: 
+   a vector, say, of predicates. This flexibility comes at a cost:
+   function-application is probably more expensive than mere
+   char-comparison.
+
+   Here's an unintended consequence: =search-and-dissoc= actually
+   changes the dictionary by adding terminal substrings of
+   disassociated strings
+
+   At some point we need to figure out whether propagating the effect
+   of filtering upward on deterministically precalculated frequencies
+   at O(2 * n) is really more efficient than some sort of
+   probabilistic sampling.
+
+   This is an optimization, though; let's get the mechanics working
+   first.
+
+   Note: there are some embarrassingly parallel aspects of
+   =search-and-dissoc=: each branch is orthogonal and can be
+   parallelized, I think.
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
