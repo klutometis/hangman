@@ -477,6 +477,26 @@
         (count (time (get-words trie)))
        ))
      
+     ;;; Should we spend the time downcasing? It's an essential part of our
+     ;;; algorithm; we might need to.
+     (defn string->word [word]
+       (map (fn [letter] (- (int letter) 97)) word))
+     
+     (defn make-trie-dictionary [file]
+       (with-open [input (reader file)]
+         (binding [*in* input]
+           ;; I would use read-lines here, but I've run into stack
+           ;; overflows.
+           (loop [word (read-line)
+                  trie {}]
+             (if word
+               (recur (read-line)
+                      (merge-tries trie (plumb (string->word word))))
+               trie)))))
+     
+     #_ (let [trie (time (make-trie-dictionary "words.txt"))]
+       (debug (time (count-trie trie))
+              (time (count (get-words trie)))))
      
    #+END_SRC
 
@@ -574,6 +594,30 @@
    time by storing the words as sentinels so we don't have to =cons=
    on the way down; we should resort to probabilistic sampling of the
    letter-frequencies.
+
+   We're also going to have to prune the tree if we guess a word
+   incorrectly; we can probably prune up from the word until the first
+   point the tree diverges, can't we? That involves some kind of
+   backtracking: =amb=?
+
+   Should we use =call-cc= from =monads= to bail out of =count-trie=
+   when =count= is high (for some definition of high)?
+
+   Creating, deterministically counting and leaving the dictionary
+   from words.txt take respectively:
+
+   #+BEGIN_EXAMPLE
+     "Elapsed time: 1952.26851 msecs"
+     "Elapsed time: 1393.619088 msecs"
+     "Elapsed time: 656.135302 msecs"
+   #+END_EXAMPLE
+
+   Maybe deterministically counting isn't such a big deal if we get it
+   over with during initialization.
+
+   =search-and-dissoc= is a positive filtering device; but we need a
+   negative device, too: =search-and-dissoc= should really dispatch on
+   a vector, say, of predicates. This flexibility comes at a cost: 
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
@@ -790,8 +834,14 @@
           (nextGuess [_ game]
             (prof
              :next-guess
+             ;; We're filtering here regardless of whether we guessed
+             ;; correctly or not, of course: we need to filter on positive
+             ;; and negative results.
              (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
                    negative-regex (negative-regex game)
+                   ;; TODO: It suffices to filter on the last thing
+                   ;; guessed, doesn't it? Previous guesses have
+                   ;; theoretically been filtered out.
                    filtering-regex (format "^%s$"(replace-str "-" negative-regex guessed-so-far))
                    filtering-pattern (re-pattern filtering-regex)]
                ;; Would in-place filtering work here?
