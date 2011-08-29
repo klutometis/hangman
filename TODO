@@ -216,7 +216,11 @@
           'clojure.contrib.singleton
           ;; '[hangman.core :only (debug)]
           'hangman.core
-          '[clojure.contrib.io :only (reader)])
+          '[clojure.contrib.io :only (reader)]
+          ;; 'clojure.contrib.monads
+          'net.dnolen.clj-cont
+          ;; 'delimc.core
+          )
      
      (import '(com.factual.hangman
                GuessingStrategy
@@ -401,45 +405,173 @@
              '()
              (keys trie)))))
      
+     ;;; We need the arity check here because search-and-dissoc changes the
+     ;;; arity of the trie; and by arity, we mean depth. Shit.
+     (defn every-predicate? [predicates string]
+       (and
+        ;; Only match exact strings (not substrings).
+        (= (count predicates)
+           (count string))
+        (every? true?
+                (map (fn [letter predicate] (predicate letter))
+                     string
+                     predicates))))
+     
+     (defn get-words-with-predicates
+       ([trie predicates]
+          (get-words-with-predicates trie predicates '() '()))
+       ([trie predicates words word]
+          ;; (debug trie words word)
+          (if (trie-sentinel? trie)
+            (let [word (reverse word)]
+              (if (every-predicate? predicates word)
+                (list word)
+                nil))
+            (reduce
+             (fn [words letter]
+               ;; (debug words letter (trie letter))
+               (concat (get-words-with-predicates (trie letter) predicates words (cons letter word)) words))
+             '()
+             (keys trie)))))
+     
+     (defn get-words-with-predicates-and-max
+       ([trie predicates]
+          (get-words-with-predicates-and-max trie predicates nil))
+       ([trie predicates max]
+          (get-words-with-predicates-and-max trie predicates '() '() 0 max))
+       ([trie predicates words word n-words max]
+          (with-call-cc
+            (let-cc
+             k
+             ;; (debug trie predicates words word n-words max (count words))
+             (cond (and max (>= (count words) max)) (k nil)
+                   (trie-sentinel? trie) (let [word (reverse word)]
+                                           (if (every-predicate? predicates word)
+                                             (list word)
+                                             nil))
+                   :else (reduce
+                          (fn [words letter]
+                            ;; (debug words letter (trie letter))
+                            (concat (get-words-with-predicates-and-max
+                                      (trie letter)
+                                      predicates
+                                      words
+                                      (cons letter word)
+                                      (inc n-words)
+                                      max)
+                                    words))
+                          '()
+                          (keys trie)))))))
+     
+     (defn get-words-with-predicates-and-max-and-continuation
+       ([k trie predicates]
+          (get-words-with-predicates-and-max-and-continuation k trie predicates nil))
+       ([k trie predicates max]
+          (get-words-with-predicates-and-max-and-continuation k trie predicates '() '() 0 max))
+       ([k trie predicates words word n-words max]
+          ;; (debug k trie predicates words word n-words max)
+          (cond (and max (>= (count words) max)) (k nil)
+                (trie-sentinel? trie) (let [word (reverse word)]
+                                        (if (every-predicate? predicates word)
+                                          (list word)
+                                          nil))
+                :else (reduce
+                       (fn [words letter]
+                         ;; (debug words letter (trie letter))
+                         (concat (get-words-with-predicates-and-max-and-continuation
+                                   k
+                                   (trie letter)
+                                   predicates
+                                   words
+                                   (cons letter word)
+                                   (inc n-words)
+                                   max)
+                                 words))
+                       '()
+                       (keys trie)))))
+     
      (let [word1 '(1 2 3 4 5)
            word2 '(1 2 3 7 8)
            word3 '(9 2 3 7 8)
            trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
        (debug
-        (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
-                         1 {2 {3 {7 {8 trie-sentinel},
-                                  4 {5 trie-sentinel}}}}}))
-        (assert (= (count-trie trie)
-                   {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
-        (assert (search-trie trie word1))
-        (assert (search-trie trie word2))
-        (assert (search-trie trie word3))
-        (assert (not (search-trie trie '(1 2 3 4 6))))
-        (assert (= (search-and-dissoc trie '(1 2 4))
-                   {9 {2 {3 {7 {8 trie-sentinel}}}},
-                    1 {2 trie-sentinel}}))
-        (assert (trie-sentinel? (search-and-dissoc trie '(2))))
-        (assert (= (search-and-dissoc trie `(~wildcard 2 4))
-                   {9 {2 trie-sentinel}, 1 {2 trie-sentinel}}))
-        (assert (=
-                 (search-and-dissoc-predicate
-                  trie
-                  [wildcard-predicate
-                   (positive-predicate 2)
-                   (positive-predicate 4)])
-                 {1 {2 trie-sentinel}, 9 {2 trie-sentinel}}))
-        (assert (= (get-words trie)
-                   '((5 4 3 2 1)
-                     (8 7 3 2 1)
-                     (8 7 3 2 9))))
-        (assert (= (search-and-dissoc-predicate
-                    trie
-                    [wildcard-predicate
-                     wildcard-predicate
-                     wildcard-predicate
-                     (negative-predicate 4)])
-                   {1 {2 {3 {7 {8 trie-sentinel}}}},
-                    9 {2 {3 {7 {8 trie-sentinel}}}}}))
+        ;; (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
+        ;;                  1 {2 {3 {7 {8 trie-sentinel},
+        ;;                           4 {5 trie-sentinel}}}}}))
+        ;; (assert (= (count-trie trie)
+        ;;            {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
+        ;; (assert (search-trie trie word1))
+        ;; (assert (search-trie trie word2))
+        ;; (assert (search-trie trie word3))
+        ;; (assert (not (search-trie trie '(1 2 3 4 6))))
+        ;; (assert (= (search-and-dissoc trie '(1 2 4))
+        ;;            {9 {2 {3 {7 {8 trie-sentinel}}}},
+        ;;             1 {2 trie-sentinel}}))
+        ;; (assert (trie-sentinel? (search-and-dissoc trie '(2))))
+        ;; (assert (= (search-and-dissoc trie `(~wildcard 2 4))
+        ;;            {9 {2 trie-sentinel}, 1 {2 trie-sentinel}}))
+        ;; (assert (=
+        ;;          (search-and-dissoc-predicate
+        ;;           trie
+        ;;           [wildcard-predicate
+        ;;            (positive-predicate 2)
+        ;;            (positive-predicate 4)])
+        ;;          {1 {2 trie-sentinel}, 9 {2 trie-sentinel}}))
+        ;; (assert (= (get-words trie)
+        ;;            '((5 4 3 2 1)
+        ;;              (8 7 3 2 1)
+        ;;              (8 7 3 2 9))))
+        ;; (assert (= (search-and-dissoc-predicate
+        ;;             trie
+        ;;             [wildcard-predicate
+        ;;              wildcard-predicate
+        ;;              wildcard-predicate
+        ;;              (negative-predicate 4)])
+        ;;            {1 {2 {3 {7 {8 trie-sentinel}}}},
+        ;;             9 {2 {3 {7 {8 trie-sentinel}}}}}))
+        ;; (assert (every-predicate? [(positive-predicate 1)
+        ;;                            wildcard-predicate
+        ;;                            (negative-predicate 2)
+        ;;                            (positive-predicate 4)
+        ;;                            (positive-predicate 5)]
+        ;;                           '(1 2 3 4 5)))
+        ;; (assert (= (get-words-with-predicates
+        ;;              trie
+        ;;              [(positive-predicate 1)
+        ;;               (positive-predicate 2)
+        ;;               (positive-predicate 3)
+        ;;               wildcard-predicate
+        ;;               wildcard-predicate])
+        ;;            '((1 2 3 4 5)
+        ;;              (1 2 3 7 8))))
+        ;; (get-words-with-predicates-and-max
+        ;;   trie
+        ;;   [(positive-predicate 1)
+        ;;    (positive-predicate 2)
+        ;;    (positive-predicate 3)
+        ;;    wildcard-predicate
+        ;;    wildcard-predicate]
+        ;;   3)
+        ;; (get-words-with-predicates-and-max
+        ;;   trie
+        ;;   [wildcard-predicate
+        ;;    wildcard-predicate
+        ;;    wildcard-predicate
+        ;;    wildcard-predicate
+        ;;    wildcard-predicate]
+        ;;   2)
+        (with-call-cc
+          (let-cc
+           k
+           (get-words-with-predicates-and-max-and-continuation
+             k
+             trie
+             [wildcard-predicate
+              wildcard-predicate
+              wildcard-predicate
+              wildcard-predicate
+              wildcard-predicate]
+             2)))
         ))
      
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
@@ -511,14 +643,88 @@
                       (merge-tries trie (plumb (string->word word))))
                trie)))))
      
-     (defn make-trie-strategy [dictionary]
-       (reify
-         GuessingStrategy
-         (nextGuess [_ game])))
+     (defn make-arity->trie-dictionary [file]
+       (with-open [input (reader file)]
+         (binding [*in* input]
+           ;; I would use read-lines here, but I've run into stack
+           ;; overflows.
+           (loop [word (read-line)
+                  arity->trie {}]
+             ;; (debug word arity->trie)
+             (if word
+               (recur (read-line)
+                      (let [arity (count word)
+                            trie (arity->trie arity)]
+                        (assoc arity->trie
+                          arity
+                          (merge-tries trie
+                                       (plumb (string->word word))))))
+               arity->trie)))))
      
-     #_ (let [trie (time (make-trie-dictionary "words.txt"))]
-       (debug (time (count-trie trie))
-              (time (count (get-words trie)))))
+     (defn string->predicates [string default-predicate]
+       (map (fn [letter]
+              (if (= letter HangmanGame/MYSTERY_LETTER)
+                default-predicate
+                (positive-predicate letter)))))
+     
+     ;;; We need to track the last guess (whether successful or not) and do a filter
+     (defn make-trie-strategy [dictionary]
+       ;; We have to resort to atoms here because we're using the
+       ;; GuessingStrategy interface.
+       (let [dictionary (atom dictionary)
+             last-guess (atom nil)]
+         (reify
+           GuessingStrategy
+           (nextGuess [_ game]
+             (if last-guess
+               (let [default-predicate
+                     (if last-guess
+                       (negative-predicate last-guess)
+                       wildcard-predicate)]
+                 (let [guessed-so-far (.toLowerCase (.getGuesseoSoFar game))
+                       predicates (string->predicates guessed-so-far default-predicate)]
+                   (swap! dictionary (search-and-dissoc dictionary predicates)))))
+             ))))
+     
+     (let [trie (time (make-arity->trie-dictionary "words.txt"))
+           trie (trie 3)]
+       (debug
+        ;; (time (count-trie trie))
+        ;; (time (count (get-words trie)))
+        (time (count
+               (get-words-with-predicates-and-max
+                 trie
+                 [
+                  wildcard-predicate
+                  wildcard-predicate
+                  wildcard-predicate
+                  ]
+                 2)))
+        (time (count
+               (with-call-cc
+                 (let-cc
+                  k
+                  (get-words-with-predicates-and-max-and-continuation
+                    k
+                    trie
+                    [
+                     wildcard-predicate
+                     wildcard-predicate
+                     wildcard-predicate
+                     ]
+                    2)))))
+        (time (count
+               (get-words-with-predicates
+                 trie
+                 [
+                  wildcard-predicate
+                  wildcard-predicate
+                  wildcard-predicate
+                  ])))
+        (time (search-trie trie [0 0 7]))
+        ;; ((trie 0) 0)
+        ;; trie
+        ))
      
    #+END_SRC
 
@@ -645,7 +851,10 @@
 
    Here's an unintended consequence: =search-and-dissoc= actually
    changes the dictionary by adding terminal substrings of
-   disassociated strings
+   disassociated strings; we need to =search-and-dissoc= on a
+   predicate-vector. =string->predicates= will take a default
+   predicate which will be =wildcard-predicate= in the case of
+   =get-words= (which also needs to take a max =n=).
 
    At some point we need to figure out whether propagating the effect
    of filtering upward on deterministically precalculated frequencies
@@ -658,6 +867,10 @@
    Note: there are some embarrassingly parallel aspects of
    =search-and-dissoc=: each branch is orthogonal and can be
    parallelized, I think.
+
+   Let's construct =run= in such a way that doesn't require mutation
+   of state: let's run the strategies as a reduction, receiving as
+   input its own output; and the specification of some initial state.
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
@@ -900,7 +1113,9 @@
                        guessed-letters
                        (map (fn [letter] (Character/toLowerCase letter)) (.getAllGuessedLetters game))
                        letter->frequency
-                       (filter (fn [letter-frequency] (not (.contains guessed-letters (first letter-frequency)))) letter->frequency)
+                       (filter (fn [letter-frequency]
+                                 (not (.contains guessed-letters (first letter-frequency))))
+                               letter->frequency)
                        frequency->letter
                        (into (sorted-map-by >) (map-invert letter->frequency))]
                    (new GuessLetter (second (first frequency->letter)))))))))))
@@ -1062,6 +1277,21 @@
   histogram and merely subtract the words that get filtered; maybe
   you're quibbling over linear (i.e. micro) optizimations now, though.
 
+  The substring problem is very dire: we can't really associate
+  key with a trie-sentinel as well as a subtrie; we can punt, of
+  course, by dealing with tries of a certain arity. Alternatively, we
+  can have trie-sentinels pointing to nil as keys.
+
+  Let's punt and restrict our search to tries of a certain arity; why
+  have sentinels at all, then? It's convenient to be able to
+  distinguish between termina and missing keys. Don't forget, however,
+  that search-and-dissoc changes the arity of the trie; we still need
+  the length checks in =every-predicate?=, therefore. (Shit, this is
+  getting subtle; at some point: too subtle for us? It's a wager.)
+
+  By ``arity'', we sometimes mean ``depth;'' unfortunately. Better
+  clear this up: trie-arity should probably refer to width; term-arity
+  (i.e. dictionary-term) is actually trie-depth.
 ** DONE Is it slower to access char-based hash-tables than int-based vectors?
    CLOSED: [2011-08-24 Wed 16:53]
    - CLOSING NOTE [2011-08-24 Wed 16:54] \\
