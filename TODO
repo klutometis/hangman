@@ -212,21 +212,25 @@
    some sort of reduction which works from the bottom up.
 
    #+BEGIN_SRC clojure
-     (use 'clojure.contrib.trace
-          'clojure.contrib.singleton
-          ;; '[hangman.core :only (debug)]
-          'hangman.core
-          '[clojure.contrib.io :only (reader)]
-          ;; 'clojure.contrib.monads
-          'net.dnolen.clj-cont
-          ;; 'delimc.core
-          )
+     (use
+      ;; 'clojure.contrib.trace
+      ;; 'clojure.contrib.singleton
+      ;; '[hangman.core :only (debug)]
+      'hangman.core
+      '[clojure.contrib.io :only (reader)]
+      ;; 'clojure.contrib.monads
+      'net.dnolen.clj-cont
+      ;; 'delimc.core
+      '[clojure.set :only (difference map-invert)]
+      '[clojure.string :only (join)]
+      )
      
      (import '(com.factual.hangman
                GuessingStrategy
                GuessLetter
                GuessWord
-               HangmanGame))
+               HangmanGame)
+             'java.lang.Character)
      
      (def trie-sentinel (gensym))
      
@@ -469,12 +473,13 @@
        ([k trie predicates max]
           (get-words-with-predicates-and-max-and-continuation k trie predicates '() '() 0 max))
        ([k trie predicates words word n-words max]
-          ;; (debug k trie predicates words word n-words max)
+          (debug k trie predicates words word n-words max)
           (cond (and max (>= (count words) max)) (k nil)
-                (trie-sentinel? trie) (let [word (reverse word)]
-                                        (if (every-predicate? predicates word)
-                                          (list word)
-                                          nil))
+                (trie-sentinel? trie)
+                (let [word (reverse word)]
+                  (if (every-predicate? predicates word)
+                    (list word)
+                    nil))
                 :else (reduce
                        (fn [words letter]
                          ;; (debug words letter (trie letter))
@@ -490,89 +495,89 @@
                        '()
                        (keys trie)))))
      
-     (let [word1 '(1 2 3 4 5)
-           word2 '(1 2 3 7 8)
-           word3 '(9 2 3 7 8)
-           trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
-       (debug
-        ;; (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
-        ;;                  1 {2 {3 {7 {8 trie-sentinel},
-        ;;                           4 {5 trie-sentinel}}}}}))
-        ;; (assert (= (count-trie trie)
-        ;;            {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
-        ;; (assert (search-trie trie word1))
-        ;; (assert (search-trie trie word2))
-        ;; (assert (search-trie trie word3))
-        ;; (assert (not (search-trie trie '(1 2 3 4 6))))
-        ;; (assert (= (search-and-dissoc trie '(1 2 4))
-        ;;            {9 {2 {3 {7 {8 trie-sentinel}}}},
-        ;;             1 {2 trie-sentinel}}))
-        ;; (assert (trie-sentinel? (search-and-dissoc trie '(2))))
-        ;; (assert (= (search-and-dissoc trie `(~wildcard 2 4))
-        ;;            {9 {2 trie-sentinel}, 1 {2 trie-sentinel}}))
-        ;; (assert (=
-        ;;          (search-and-dissoc-predicate
-        ;;           trie
-        ;;           [wildcard-predicate
-        ;;            (positive-predicate 2)
-        ;;            (positive-predicate 4)])
-        ;;          {1 {2 trie-sentinel}, 9 {2 trie-sentinel}}))
-        ;; (assert (= (get-words trie)
-        ;;            '((5 4 3 2 1)
-        ;;              (8 7 3 2 1)
-        ;;              (8 7 3 2 9))))
-        ;; (assert (= (search-and-dissoc-predicate
-        ;;             trie
-        ;;             [wildcard-predicate
-        ;;              wildcard-predicate
-        ;;              wildcard-predicate
-        ;;              (negative-predicate 4)])
-        ;;            {1 {2 {3 {7 {8 trie-sentinel}}}},
-        ;;             9 {2 {3 {7 {8 trie-sentinel}}}}}))
-        ;; (assert (every-predicate? [(positive-predicate 1)
-        ;;                            wildcard-predicate
-        ;;                            (negative-predicate 2)
-        ;;                            (positive-predicate 4)
-        ;;                            (positive-predicate 5)]
-        ;;                           '(1 2 3 4 5)))
-        ;; (assert (= (get-words-with-predicates
-        ;;              trie
-        ;;              [(positive-predicate 1)
-        ;;               (positive-predicate 2)
-        ;;               (positive-predicate 3)
-        ;;               wildcard-predicate
-        ;;               wildcard-predicate])
-        ;;            '((1 2 3 4 5)
-        ;;              (1 2 3 7 8))))
-        ;; (get-words-with-predicates-and-max
-        ;;   trie
-        ;;   [(positive-predicate 1)
-        ;;    (positive-predicate 2)
-        ;;    (positive-predicate 3)
-        ;;    wildcard-predicate
-        ;;    wildcard-predicate]
-        ;;   3)
-        ;; (get-words-with-predicates-and-max
-        ;;   trie
-        ;;   [wildcard-predicate
-        ;;    wildcard-predicate
-        ;;    wildcard-predicate
-        ;;    wildcard-predicate
-        ;;    wildcard-predicate]
-        ;;   2)
-        (with-call-cc
-          (let-cc
-           k
-           (get-words-with-predicates-and-max-and-continuation
-             k
-             trie
-             [wildcard-predicate
-              wildcard-predicate
-              wildcard-predicate
-              wildcard-predicate
-              wildcard-predicate]
-             2)))
-        ))
+     #_ (let [word1 '(1 2 3 4 5)
+              word2 '(1 2 3 7 8)
+              word3 '(9 2 3 7 8)
+              trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
+          (debug
+           ;; (assert (= trie {9 {2 {3 {7 {8 trie-sentinel}}}},
+           ;;                  1 {2 {3 {7 {8 trie-sentinel},
+           ;;                           4 {5 trie-sentinel}}}}}))
+           ;; (assert (= (count-trie trie)
+           ;;            {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
+           ;; (assert (search-trie trie word1))
+           ;; (assert (search-trie trie word2))
+           ;; (assert (search-trie trie word3))
+           ;; (assert (not (search-trie trie '(1 2 3 4 6))))
+           ;; (assert (= (search-and-dissoc trie '(1 2 4))
+           ;;            {9 {2 {3 {7 {8 trie-sentinel}}}},
+           ;;             1 {2 trie-sentinel}}))
+           ;; (assert (trie-sentinel? (search-and-dissoc trie '(2))))
+           ;; (assert (= (search-and-dissoc trie `(~wildcard 2 4))
+           ;;            {9 {2 trie-sentinel}, 1 {2 trie-sentinel}}))
+           ;; (assert (=
+           ;;          (search-and-dissoc-predicate
+           ;;           trie
+           ;;           [wildcard-predicate
+           ;;            (positive-predicate 2)
+           ;;            (positive-predicate 4)])
+           ;;          {1 {2 trie-sentinel}, 9 {2 trie-sentinel}}))
+           ;; (assert (= (get-words trie)
+           ;;            '((5 4 3 2 1)
+           ;;              (8 7 3 2 1)
+           ;;              (8 7 3 2 9))))
+           ;; (assert (= (search-and-dissoc-predicate
+           ;;             trie
+           ;;             [wildcard-predicate
+           ;;              wildcard-predicate
+           ;;              wildcard-predicate
+           ;;              (negative-predicate 4)])
+           ;;            {1 {2 {3 {7 {8 trie-sentinel}}}},
+           ;;             9 {2 {3 {7 {8 trie-sentinel}}}}}))
+           ;; (assert (every-predicate? [(positive-predicate 1)
+           ;;                            wildcard-predicate
+           ;;                            (negative-predicate 2)
+           ;;                            (positive-predicate 4)
+           ;;                            (positive-predicate 5)]
+           ;;                           '(1 2 3 4 5)))
+           ;; (assert (= (get-words-with-predicates
+           ;;              trie
+           ;;              [(positive-predicate 1)
+           ;;               (positive-predicate 2)
+           ;;               (positive-predicate 3)
+           ;;               wildcard-predicate
+           ;;               wildcard-predicate])
+           ;;            '((1 2 3 4 5)
+           ;;              (1 2 3 7 8))))
+           ;; (get-words-with-predicates-and-max
+           ;;   trie
+           ;;   [(positive-predicate 1)
+           ;;    (positive-predicate 2)
+           ;;    (positive-predicate 3)
+           ;;    wildcard-predicate
+           ;;    wildcard-predicate]
+           ;;   3)
+           ;; (get-words-with-predicates-and-max
+           ;;   trie
+           ;;   [wildcard-predicate
+           ;;    wildcard-predicate
+           ;;    wildcard-predicate
+           ;;    wildcard-predicate
+           ;;    wildcard-predicate]
+           ;;   2)
+           (with-call-cc
+             (let-cc
+              k
+              (get-words-with-predicates-and-max-and-continuation
+                k
+                trie
+                [wildcard-predicate
+                 wildcard-predicate
+                 wildcard-predicate
+                 wildcard-predicate
+                 wildcard-predicate]
+                2)))
+           ))
      
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
      ;;; correct, though; and we haven't even tackled the question of a
@@ -600,31 +605,31 @@
      ;;;
      ;;; Takes 1.1 seconds to retrieve 200k words.
      #_ (let [words (take 200000 (repeatedly (fn [] (take 7 (repeatedly (fn [] (rand-int 26)))))))
-           frequencies (transient (vec (replicate 26 0)))
-           trie (time (reduce (fn [trie word] (merge-tries trie (plumb word)))
-                              {} words))]
-       ;; A debug with time?
-       (debug
-        ;; (time (persistent! (calculate-frequencies trie)))
-        ;; (calculate-frequencies trie)
-        ;; (time (count-trie trie))
-        ;; (trie 0)
-        ;; (time (calculate-frequencies trie))
-        ;; (time (count-trie trie))
-        ;; (count-trie (time (search-and-dissoc trie '(1 2 3 4 5 6 7))))
-        (count-trie (time (search-and-dissoc trie `(1 2 ~wildcard 4 5 6 7))))
-        (get-words
-         (time (search-and-dissoc-predicate
-                trie
-                [(positive-predicate 1)
-                 (positive-predicate 2)
-                 (positive-predicate 3)
-                 (positive-predicate 4)
-                 (positive-predicate 5)
-                 (positive-predicate 6)
-                 (positive-predicate 7)])))
-        ;; (count (time (get-words trie)))
-       ))
+              frequencies (transient (vec (replicate 26 0)))
+              trie (time (reduce (fn [trie word] (merge-tries trie (plumb word)))
+                                 {} words))]
+          ;; A debug with time?
+          (debug
+           ;; (time (persistent! (calculate-frequencies trie)))
+           ;; (calculate-frequencies trie)
+           ;; (time (count-trie trie))
+           ;; (trie 0)
+           ;; (time (calculate-frequencies trie))
+           ;; (time (count-trie trie))
+           ;; (count-trie (time (search-and-dissoc trie '(1 2 3 4 5 6 7))))
+           (count-trie (time (search-and-dissoc trie `(1 2 ~wildcard 4 5 6 7))))
+           (get-words
+            (time (search-and-dissoc-predicate
+                   trie
+                   [(positive-predicate 1)
+                    (positive-predicate 2)
+                    (positive-predicate 3)
+                    (positive-predicate 4)
+                    (positive-predicate 5)
+                    (positive-predicate 6)
+                    (positive-predicate 7)])))
+           ;; (count (time (get-words trie)))
+           ))
      
      ;;; Should we spend the time downcasing? It's an essential part of our
      ;;; algorithm; we might need to.
@@ -661,13 +666,22 @@
                                        (plumb (string->word word))))))
                arity->trie)))))
      
-     (defn string->predicates [string default-predicate]
-       (map (fn [letter]
-              (if (= letter HangmanGame/MYSTERY_LETTER)
-                default-predicate
-                (positive-predicate letter)))))
+     (defn char->letter [char]
+       (- (int char) 97))
      
-     ;;; We need to track the last guess (whether successful or not) and do a filter
+     (defn string->predicates [string default-predicate]
+       (map (fn [char]
+              (if (= char HangmanGame/MYSTERY_LETTER)
+                default-predicate
+                (positive-predicate (char->letter char))))
+            string))
+     
+     (defn letter->char [letter]
+       (char (+ 97 letter)))
+     
+     (defn word->string [word]
+       (join (map letter->char word)))
+     
      (defn make-trie-strategy [dictionary]
        ;; We have to resort to atoms here because we're using the
        ;; GuessingStrategy interface.
@@ -676,56 +690,90 @@
          (reify
            GuessingStrategy
            (nextGuess [_ game]
-             (if last-guess
+             ;; (debug (count-trie @dictionary)
+             ;;        @last-guess)
+             (if @last-guess
                (let [default-predicate
-                     (if last-guess
-                       (negative-predicate last-guess)
+                     (if @last-guess
+                       (negative-predicate @last-guess)
                        wildcard-predicate)]
-                 (let [guessed-so-far (.toLowerCase (.getGuesseoSoFar game))
+                 (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
                        predicates (string->predicates guessed-so-far default-predicate)]
-                   (swap! dictionary (search-and-dissoc dictionary predicates)))))
-             ))))
+                   (reset! dictionary (search-and-dissoc-predicate @dictionary predicates))
+                   ;; (debug guessed-so-far
+                   ;;        @last-guess
+                   ;;        @dictionary
+                   ;;        (string->predicates guessed-so-far (negative-predicate @last-guess)))
+                   (let [words
+                         (with-call-cc
+                           (let-cc
+                            k
+                            (get-words-with-predicates-and-max-and-continuation
+                              k
+                              @dictionary
+                              (string->predicates guessed-so-far (negative-predicate @last-guess))
+                              1)))]
+                     (if (= (count words) 1)
+                       (new GuessWord (word->string (first words)))
+                       (let [letter->frequency (count-trie @dictionary)
+                             guessed-letters
+                             (map (fn [letter] (Character/toLowerCase letter))
+                                  (.getAllGuessedLetters game))
+                             letter->frequency
+                             (filter (fn [letter-frequency]
+                                       (not (.contains guessed-letters (first letter-frequency))))
+                                     letter->frequency)
+                             frequency->letter
+                             (into (sorted-map-by >) (map-invert letter->frequency))]
+                         (reset! last-guess (second (first frequency->letter)))
+                         (new GuessLetter (char (+ 97 (second (first frequency->letter))))))))))
+               (let [letter->frequency (count-trie @dictionary)
+                     frequency->letter
+                     (into (sorted-map-by >) (map-invert letter->frequency))]
+                 (reset! last-guess (second (first frequency->letter)))
+                 (new GuessLetter (char (+ 97 (second (first frequency->letter)))))))))))
      
-     (let [trie (time (make-arity->trie-dictionary "words.txt"))
-           trie (trie 3)]
-       (debug
-        ;; (time (count-trie trie))
-        ;; (time (count (get-words trie)))
-        (time (count
-               (get-words-with-predicates-and-max
-                 trie
-                 [
-                  wildcard-predicate
-                  wildcard-predicate
-                  wildcard-predicate
-                  ]
-                 2)))
-        (time (count
-               (with-call-cc
-                 (let-cc
-                  k
-                  (get-words-with-predicates-and-max-and-continuation
-                    k
-                    trie
-                    [
-                     wildcard-predicate
-                     wildcard-predicate
-                     wildcard-predicate
-                     ]
-                    2)))))
-        (time (count
-               (get-words-with-predicates
-                 trie
-                 [
-                  wildcard-predicate
-                  wildcard-predicate
-                  wildcard-predicate
-                  ])))
-        (time (search-trie trie [0 0 7]))
-        ;; ((trie 0) 0)
-        ;; trie
-        ))
-     
+     (let [trie (time (make-arity->trie-dictionary "words-head.txt"))
+           trie (trie 8)]
+       #_ (debug
+           ;; (time (count-trie trie))
+           ;; (time (count (get-words trie)))
+           ;; (time (count
+           ;;        (get-words-with-predicates-and-max
+           ;;          trie
+           ;;          [
+           ;;           wildcard-predicate
+           ;;           wildcard-predicate
+           ;;           wildcard-predicate
+           ;;           ]
+           ;;          2)))
+           ;; (time (count
+           ;;        (with-call-cc
+           ;;          (let-cc
+           ;;           k
+           ;;           (get-words-with-predicates-and-max-and-continuation
+           ;;             k
+           ;;             trie
+           ;;             [
+           ;;              wildcard-predicate
+           ;;              wildcard-predicate
+           ;;              wildcard-predicate
+           ;;              ]
+           ;;             2)))))
+           ;; (time (count
+           ;;        (get-words-with-predicates
+           ;;          trie
+           ;;          [
+           ;;           wildcard-predicate
+           ;;           wildcard-predicate
+           ;;           wildcard-predicate
+           ;;           ])))
+           ;; (time (search-trie trie [0 0 7]))
+           ;; ((trie 0) 0)
+           ;; trie
+           )
+       (run (new HangmanGame "aardvark" 4)
+            (make-trie-strategy trie)))
    #+END_SRC
 
    We're going to have a huge space penalty for using tries, by the
