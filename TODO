@@ -272,6 +272,39 @@
               (keys trie)))
             frequencies)))
      
+     ;;; Can't we avoid predicates by cleaning the trie more thoroughly on
+     ;;; search-and-dissoc? We're going to have to count on
+     ;;; wildcard-default after a search-and-dissoc pruning.
+     (defn count-trie-predicates
+       ([trie predicates]
+          (count-trie-predicates {} trie predicates))
+       ([frequencies trie predicates]
+          ;; (debug trie
+          ;;        (keys trie)
+          ;;        predicates)
+          ;; (debug (if (map? trie) (keys trie)))
+          (if (or (trie-sentinel? trie)
+                  (empty? predicates))
+            frequencies
+            (let [predicate (first predicates)
+                  keys (filter predicate (keys trie))]
+              (debug frequencies predicate keys)
+              (merge-with
+               +
+               frequencies
+               (reduce
+                (fn [frequencies key]
+                  (merge-with
+                   frequencies
+                   (count-trie-predicates
+                    frequencies
+                    (trie key)
+                    (next predicates))))
+                (zipmap
+                 keys
+                 (replicate (count keys) 1))
+                keys))))))
+     
      ;;; Let's compare this transient-based implementation with the above
      ;;; for time-efficiency.
      (defn count-trie!
@@ -381,7 +414,23 @@
      (defn negative-predicate [predicans]
        (fn [predicandum] (not (= predicans predicandum))))
      
+     ;;; Do we have a problem here with positive vs. negative predicates? A
+     ;;; negative predicate, for instance, caps the branch with a sentinel;
+     ;;; and leaves artifacts in e.g. the root.
+     ;;;
+     ;;; Let's think about this: a full trie gets a negative predicate at
+     ;;; root; caps it. This is incorrect, isn't it? It seems like it
+     ;;; should purge the key.
+     ;;;
+     ;;; It doesn't appear to be the negative predicates, but the positive
+     ;;; ones that create artifacts: negatives are indeed purged. This
+     ;;; makes sense, frankly: none of the initial nodes in e.g. "oses"
+     ;;; have been purged because they didn't contravene the negative
+     ;;; criteria; on the other hand, the second letter of most of them
+     ;;; contravened the positive predicate. count-trie, therefore, has to
+     ;;; have some predicates, I'm afraid.
      (defn search-and-dissoc-predicate [trie predicates]
+       ;; (debug trie)
        (if (or (empty? predicates)
                (trie-sentinel? trie))
          trie
@@ -701,6 +750,7 @@
                        wildcard-predicate)]
                  (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
                        predicates (string->predicates guessed-so-far default-predicate)]
+                   ;; (debug @dictionary)
                    (reset! dictionary (search-and-dissoc-predicate @dictionary predicates))
                    ;; (debug guessed-so-far
                    ;;        @last-guess
@@ -715,11 +765,19 @@
                               @dictionary
                               (string->predicates guessed-so-far (negative-predicate @last-guess))
                               2)))]
+                     (debug
+                      (with-call-cc
+                        (let-cc
+                         k
+                         (get-words-with-predicates-and-max-and-continuation
+                           k
+                           @dictionary
+                           (string->predicates guessed-so-far (negative-predicate @last-guess))))))
                      (if (= (count words) 1)
                        ;; TODO: We have to be able to remove this word from the
                        ;; dictionary.
                        (new GuessWord (word->string (first words)))
-                       (let [letter->frequency (count-trie @dictionary)
+                       (let [letter->frequency (count-trie-predicates @dictionary predicates)
                              guessed-letters
                              (map (fn [letter] (char->letter (Character/toLowerCase letter)))
                                   (.getAllGuessedLetters game))
@@ -735,9 +793,12 @@
                          ;; (debug @dictionary
                          ;;        guessed-letters
                          ;;        frequency->letter)
-                         (debug guessed-letters
-                                ;; frequency->letter
-                                )
+                         ;; (debug guessed-letters
+                         ;;        (count-trie @dictionary)
+                         ;;        frequency->letter
+                         ;;        @last-guess
+                         ;;        @dictionary
+                         ;;        )
                          (reset! last-guess (second (first frequency->letter)))
                          (new GuessLetter (char (+ 97 (second (first frequency->letter))))))))))
                (let [letter->frequency (count-trie @dictionary)
@@ -754,26 +815,26 @@
      
      (let [arity->trie (time (make-arity->trie-dictionary "words.txt"))
            words [
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
-                  "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
+                  ;; "aardvark"
                   ;; "comaker"
                   ;; "cumulative"
                   ;; "eruptive"
@@ -781,7 +842,7 @@
                   ;; "monadism"
                   ;; "mus"
                   ;; "nagging"
-                  ;; "oses"
+                  "oses"
                   ;; "remembered"
                   ;; "spodumenes"
                   ;; "stereoisomers"
