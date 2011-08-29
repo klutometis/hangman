@@ -382,9 +382,12 @@
        (fn [predicandum] (not (= predicans predicandum))))
      
      (defn search-and-dissoc-predicate [trie predicates]
-       (if predicates
+       (if (or (empty? predicates)
+               (trie-sentinel? trie))
+         trie
          (let [predicate (first predicates)
                letters (filter predicate (keys trie))]
+           ;; (debug predicate letters)
            (if (empty? letters)
              trie-sentinel
              (reduce
@@ -393,8 +396,7 @@
                   letter
                   (search-and-dissoc-predicate (trie letter) (next predicates))))
               {}
-              letters)))
-         trie))
+              letters)))))
      
      (defn get-words
        ([trie] (get-words trie '() '()))
@@ -473,7 +475,7 @@
        ([k trie predicates max]
           (get-words-with-predicates-and-max-and-continuation k trie predicates '() '() 0 max))
        ([k trie predicates words word n-words max]
-          (debug k trie predicates words word n-words max)
+          ;; (debug k trie predicates words word n-words max)
           (cond (and max (>= (count words) max)) (k nil)
                 (trie-sentinel? trie)
                 (let [word (reverse word)]
@@ -712,12 +714,14 @@
                               k
                               @dictionary
                               (string->predicates guessed-so-far (negative-predicate @last-guess))
-                              1)))]
+                              2)))]
                      (if (= (count words) 1)
+                       ;; TODO: We have to be able to remove this word from the
+                       ;; dictionary.
                        (new GuessWord (word->string (first words)))
                        (let [letter->frequency (count-trie @dictionary)
                              guessed-letters
-                             (map (fn [letter] (Character/toLowerCase letter))
+                             (map (fn [letter] (char->letter (Character/toLowerCase letter)))
                                   (.getAllGuessedLetters game))
                              letter->frequency
                              (filter (fn [letter-frequency]
@@ -725,6 +729,15 @@
                                      letter->frequency)
                              frequency->letter
                              (into (sorted-map-by >) (map-invert letter->frequency))]
+                         ;; (debug letter->frequency
+                         ;;        guessed-letters
+                         ;;        frequency->letter)
+                         ;; (debug @dictionary
+                         ;;        guessed-letters
+                         ;;        frequency->letter)
+                         (debug guessed-letters
+                                ;; frequency->letter
+                                )
                          (reset! last-guess (second (first frequency->letter)))
                          (new GuessLetter (char (+ 97 (second (first frequency->letter))))))))))
                (let [letter->frequency (count-trie @dictionary)
@@ -733,8 +746,51 @@
                  (reset! last-guess (second (first frequency->letter)))
                  (new GuessLetter (char (+ 97 (second (first frequency->letter)))))))))))
      
-     (let [trie (time (make-arity->trie-dictionary "words-head.txt"))
-           trie (trie 8)]
+     (defmacro time-and-value [expr]
+       `(let [start# (. System (nanoTime))
+              ret# ~expr]
+          [(/ (double (- (. System (nanoTime)) start#)) 1000000.0)
+           ret#]))
+     
+     (let [arity->trie (time (make-arity->trie-dictionary "words.txt"))
+           words [
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  "aardvark"
+                  ;; "comaker"
+                  ;; "cumulative"
+                  ;; "eruptive"
+                  ;; "factual"
+                  ;; "monadism"
+                  ;; "mus"
+                  ;; "nagging"
+                  ;; "oses"
+                  ;; "remembered"
+                  ;; "spodumenes"
+                  ;; "stereoisomers"
+                  ;; "toxics"
+                  ;; "trichromats"
+                  ;; "triose"
+                  ;; "uniformed"
+                  ]
+           ]
        #_ (debug
            ;; (time (count-trie trie))
            ;; (time (count (get-words trie)))
@@ -772,8 +828,13 @@
            ;; ((trie 0) 0)
            ;; trie
            )
-       (run (new HangmanGame "aardvark" 4)
-            (make-trie-strategy trie)))
+       (debug
+        (map (fn [word]
+               (cons word
+                     (time-and-value
+                      (run (new HangmanGame word 4)
+                           (make-trie-strategy (arity->trie (count word)))))))
+             words)))
    #+END_SRC
 
    We're going to have a huge space penalty for using tries, by the
@@ -919,6 +980,38 @@
    Let's construct =run= in such a way that doesn't require mutation
    of state: let's run the strategies as a reduction, receiving as
    input its own output; and the specification of some initial state.
+
+  The substring problem is very dire: we can't really associate
+  key with a trie-sentinel as well as a subtrie; we can punt, of
+  course, by dealing with tries of a certain arity. Alternatively, we
+  can have trie-sentinels pointing to nil as keys.
+
+  Let's punt and restrict our search to tries of a certain arity; why
+  have sentinels at all, then? It's convenient to be able to
+  distinguish between termina and missing keys. Don't forget, however,
+  that search-and-dissoc changes the arity of the trie; we still need
+  the length checks in =every-predicate?=, therefore. (Shit, this is
+  getting subtle; at some point: too subtle for us? It's a wager.)
+
+  By ``arity'', we sometimes mean ``depth;'' unfortunately. Better
+  clear this up: trie-arity should probably refer to width; term-arity
+  (i.e. dictionary-term) is actually trie-depth.
+
+  While we appear to be a little faster than naïve regexen, we're
+  losing words that we shouldn't ("toxics", "oses").
+
+  I'm seeing lots of trie-sentinel artifacts where the key should be
+  removed instead (see `oses'); I'm guessing
+  =search-and-dissoc-predicate= is the culprit: let's reëxamine the
+  base-case.
+
+  Also: what the hell is it doing for so long on things like
+  `aardvark'? Let's visualize. It's spends a lot of time, predictably,
+  in =merge-tries=; =trie-sentinel?= overwhelmingly, also, which kind
+  of sucks; =count-trie= makes an appearance. Let's probabalize
+  =count-trie=; what about =trie-sentinel?=: we don't have fixed-depth
+  tries because of =search-and-dissoc=: how do we distinguish absent
+  keys from bona fide words?
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
@@ -1221,35 +1314,36 @@
         (float (/ (reduce + vals) (count vals)))))
     
     (profile
-     (let [arity->dictionary (make-arity->dictionary "words.txt")]
-       (let [time-scores
-             (map #(time-and-value
-                    (run (new HangmanGame % 4)
-                         (make-regex-strategy
-                          (arity->dictionary (count %) '()))))
-                  words)
-             data
-             (zipmap words (map (fn [initial-time
-                                     reference-score
-                                     [time score]]
-                                  (let [delta-time (- time initial-time)
-                                        delta-score (- score reference-score)]
-                                    (let [percent-change-time (/ delta-time initial-time)
-                                          percent-change-score (float (/ delta-score reference-score))]
-                                      {:delta-time delta-time
-                                       :percent-change-time percent-change-time
-                                       :delta-score delta-score
-                                       :percent-change-score percent-change-score})))
-                                initial-times reference-scores time-scores))
-             average-delta-time (average-vals data :delta-time)
-             average-delta-score (average-vals data :delta-score)
-             average-percent-change-time (average-vals data :percent-change-time)
-             average-percent-change-score (average-vals data :percent-change-score)]
-         {:data (into (sorted-map) data)
-          :average-delta-time average-delta-time
-          :average-percent-change-time average-percent-change-time
-          :average-delta-score average-delta-score
-          :average-percent-change-score average-percent-change-score})))
+     (pprint
+      (let [arity->dictionary (make-arity->dictionary "words.txt")]
+        (let [time-scores
+              (map #(time-and-value
+                     (run (new HangmanGame % 4)
+                          (make-regex-strategy
+                           (arity->dictionary (count %) '()))))
+                   words)
+              data
+              (zipmap words (map (fn [initial-time
+                                      reference-score
+                                      [time score]]
+                                   (let [delta-time (- time initial-time)
+                                         delta-score (- score reference-score)]
+                                     (let [percent-change-time (/ delta-time initial-time)
+                                           percent-change-score (float (/ delta-score reference-score))]
+                                       {:delta-time delta-time
+                                        :percent-change-time percent-change-time
+                                        :delta-score delta-score
+                                        :percent-change-score percent-change-score})))
+                                 initial-times reference-scores time-scores))
+              average-delta-time (average-vals data :delta-time)
+              average-delta-score (average-vals data :delta-score)
+              average-percent-change-time (average-vals data :percent-change-time)
+              average-percent-change-score (average-vals data :percent-change-score)]
+          {:data (into (sorted-map) data)
+           :average-delta-time average-delta-time
+           :average-percent-change-time average-percent-change-time
+           :average-delta-score average-delta-score
+           :average-percent-change-score average-percent-change-score}))))
     
   #+END_SRC
 
@@ -1323,23 +1417,7 @@
 
   One potential optimization is to do an initial letter-frequency
   histogram and merely subtract the words that get filtered; maybe
-  you're quibbling over linear (i.e. micro) optizimations now, though.
-
-  The substring problem is very dire: we can't really associate
-  key with a trie-sentinel as well as a subtrie; we can punt, of
-  course, by dealing with tries of a certain arity. Alternatively, we
-  can have trie-sentinels pointing to nil as keys.
-
-  Let's punt and restrict our search to tries of a certain arity; why
-  have sentinels at all, then? It's convenient to be able to
-  distinguish between termina and missing keys. Don't forget, however,
-  that search-and-dissoc changes the arity of the trie; we still need
-  the length checks in =every-predicate?=, therefore. (Shit, this is
-  getting subtle; at some point: too subtle for us? It's a wager.)
-
-  By ``arity'', we sometimes mean ``depth;'' unfortunately. Better
-  clear this up: trie-arity should probably refer to width; term-arity
-  (i.e. dictionary-term) is actually trie-depth.
+  you're quibbling over linear (i.e. micro) optizimations now, though.  
 ** DONE Is it slower to access char-based hash-tables than int-based vectors?
    CLOSED: [2011-08-24 Wed 16:53]
    - CLOSING NOTE [2011-08-24 Wed 16:54] \\
