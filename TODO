@@ -213,7 +213,7 @@
 
    #+BEGIN_SRC clojure
      (use
-      ;; 'clojure.contrib.trace
+      'clojure.contrib.trace
       ;; 'clojure.contrib.singleton
       ;; '[hangman.core :only (debug)]
       'hangman.core
@@ -447,6 +447,82 @@
               {}
               letters)))))
      
+     (defn search-and-dissoc-predicate-with-frequencies
+       [trie predicates frequencies]
+       ;; (debug trie)
+       (if (or (empty? predicates)
+               (trie-sentinel? trie))
+         trie
+         (let [predicate (first predicates)
+               letters (filter predicate (keys trie))]
+           ;; (debug predicate letters)
+           (if (empty? letters)
+             trie-sentinel
+             (reduce
+              (fn [subtrie letter]
+                (assoc subtrie
+                  letter
+                  (search-and-dissoc-predicate (trie letter) (next predicates))))
+              {}
+              letters)))))
+     
+     (defn sufficient-depth?-with-cc
+       ([k trie depth current-depth]
+          (debug depth current-depth)
+          (if (= depth current-depth)
+            (k true)
+            (if (trie-sentinel? trie)
+              false
+              (doseq [key (keys trie)]
+                (sufficient-depth?-with-cc
+                  k
+                  trie
+                  depth
+                  (inc current-depth)))))))
+     
+     (defn sufficient-depth?
+       ([trie depth]
+          (sufficient-depth? trie depth 1))
+       ([trie depth current-depth]
+          (with-call-cc
+            (let-cc
+             k
+             (sufficient-depth?-with-cc
+               k
+               trie
+               depth
+               current-depth)))))
+     
+     ;;; Just character count on words?
+     (defn search-and-dissoc-predicate-with-depth
+       ([trie predicates depth]
+          (search-and-dissoc-predicate-with-depth trie predicates depth 1))
+       ;; (debug trie)
+       ([trie predicates depth current-depth]
+          (debug predicates depth current-depth)
+          (if (or (empty? predicates)
+                  (trie-sentinel? trie))
+            trie
+            (let [predicate (first predicates)
+                  letters (filter predicate (keys trie))]
+              ;; (debug predicate letters)
+              (if (empty? letters)
+                trie-sentinel
+                (reduce
+                 (fn [search-trie letter]
+                   (let [subtrie (trie letter)]
+                     (if (sufficient-depth? subtrie depth)
+                       (assoc search-trie
+                         letter
+                         (search-and-dissoc-predicate-with-depth
+                          subtrie
+                          (next predicates)
+                          (- depth current-depth)
+                          (inc current-depth)))
+                       search-trie)))
+                 {}
+                 letters))))))
+     
      (defn get-words
        ([trie] (get-words trie '() '()))
        ([trie words word]
@@ -573,7 +649,7 @@
                        '()
                        (keys trie)))))
      
-     #_ (let [word1 '(1 2 3 4 5)
+     (let [word1 '(1 2 3 4 5)
               word2 '(1 2 3 7 8)
               word3 '(9 2 3 7 8)
               trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
@@ -643,18 +719,28 @@
            ;;    wildcard-predicate
            ;;    wildcard-predicate]
            ;;   2)
-           (with-call-cc
-             (let-cc
-              k
-              (get-words-with-predicates-and-max-and-continuation
-                k
-                trie
-                [wildcard-predicate
-                 wildcard-predicate
-                 wildcard-predicate
-                 wildcard-predicate
-                 wildcard-predicate]
-                2)))
+           ;; (with-call-cc
+           ;;   (let-cc
+           ;;    k
+           ;;    (get-words-with-predicates-and-max-and-continuation
+           ;;      k
+           ;;      trie
+           ;;      [wildcard-predicate
+           ;;       wildcard-predicate
+           ;;       wildcard-predicate
+           ;;       wildcard-predicate
+           ;;       wildcard-predicate]
+           ;;      2)))
+           (search-and-dissoc-predicate-with-depth
+             trie
+             [
+              wildcard-predicate
+              wildcard-predicate
+              wildcard-predicate
+              wildcard-predicate
+              wildcard-predicate
+              ]
+             5)
            ))
      
      ;;; Whew: 200k takes about 1.2 seconds (not sure if the results are
@@ -817,7 +903,7 @@
                  (if @last-guess
                    (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
                          predicates (string->predicates guessed-so-far (negative-predicate @last-guess))]
-                     (reset! dictionary (search-and-dissoc-predicate @dictionary predicates))
+                     (reset! dictionary (search-and-dissoc-predicate-with-depth @dictionary predicates arity))
                      (let [letter->frequency (count-trie @dictionary)
                            guessed-letters
                            (map (fn [letter] (char->letter (Character/toLowerCase letter)))
@@ -1159,6 +1245,10 @@
   search-and-dissoc won't create new depth-appropriate terminin. All
   the depth-appropriate termini should have been created at
   make-trie-dictionary.
+
+  Calculate frequencies at initialization; propagate frequencies to
+  trie-strategy; update them at =get-words=; we can have a
+  =get-words-until-stable-frequencies=, if necessary.
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
@@ -1565,6 +1655,9 @@
   One potential optimization is to do an initial letter-frequency
   histogram and merely subtract the words that get filtered; maybe
   you're quibbling over linear (i.e. micro) optizimations now, though.  
+
+  1. Randomly sample the frequency space until we have stable frequencies;
+  2. 
 ** DONE Is it slower to access char-based hash-tables than int-based vectors?
    CLOSED: [2011-08-24 Wed 16:53]
    - CLOSING NOTE [2011-08-24 Wed 16:54] \\
