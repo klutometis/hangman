@@ -546,6 +546,33 @@
                        '()
                        (keys trie)))))
      
+     (defn get-words-with-depth-and-max-and-continuation
+       ([k trie depth]
+          (get-words-with-depth-and-max-and-continuation k trie depth nil))
+       ([k trie depth max]
+          (get-words-with-depth-and-max-and-continuation k trie depth '() '() 0 max))
+       ([k trie depth words word current-depth max]
+          ;; (debug k trie depth words word current-depth max)
+          (cond (and max (>= (count words) max)) (k nil)
+                (trie-sentinel? trie)
+                (if (= current-depth depth)
+                  (list (reverse word))
+                  nil)
+                :else (reduce
+                       (fn [words letter]
+                         ;; (debug words letter (trie letter))
+                         (concat (get-words-with-depth-and-max-and-continuation
+                                   k
+                                   (trie letter)
+                                   depth
+                                   words
+                                   (cons letter word)
+                                   (inc current-depth)
+                                   max)
+                                 words))
+                       '()
+                       (keys trie)))))
+     
      #_ (let [word1 '(1 2 3 4 5)
               word2 '(1 2 3 7 8)
               word3 '(9 2 3 7 8)
@@ -733,7 +760,27 @@
      (defn word->string [word]
        (join (map letter->char word)))
      
-     (defn make-trie-strategy [dictionary]
+     (defn letter-trie->char-trie
+       ([letter-trie]
+          (letter-trie->char-trie letter-trie {}))
+       ([letter-trie char-trie]
+          (if (trie-sentinel? letter-trie)
+            trie-sentinel
+            (reduce
+             (fn [trie letter]
+               (assoc trie
+                 (letter->char letter)
+                 (letter-trie->char-trie
+                  (letter-trie letter)
+                  {})))
+             char-trie
+             (keys letter-trie)))))
+     
+     ;; (def letter? integer?)
+     
+     ;; (def word? list?)
+     
+     (defn make-trie-strategy [arity dictionary]
        ;; We have to resort to atoms here because we're using the
        ;; GuessingStrategy interface.
        (let [dictionary (atom dictionary)
@@ -743,69 +790,96 @@
            (nextGuess [_ game]
              ;; (debug (count-trie @dictionary)
              ;;        @last-guess)
-             (if @last-guess
-               (let [default-predicate
-                     (if @last-guess
-                       (negative-predicate @last-guess)
-                       wildcard-predicate)]
-                 (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
-                       predicates (string->predicates guessed-so-far default-predicate)]
-                   ;; (debug @dictionary)
-                   (reset! dictionary (search-and-dissoc-predicate @dictionary predicates))
-                   ;; (debug guessed-so-far
-                   ;;        @last-guess
-                   ;;        @dictionary
-                   ;;        (string->predicates guessed-so-far (negative-predicate @last-guess)))
-                   (let [words
-                         (with-call-cc
+             (let [remaining-guesses (.numWrongGuessesRemaining game)
+                   words (with-call-cc
                            (let-cc
                             k
-                            (get-words-with-predicates-and-max-and-continuation
+                            (get-words-with-depth-and-max-and-continuation
                               k
                               @dictionary
-                              (string->predicates guessed-so-far (negative-predicate @last-guess))
-                              2)))]
+                              arity
+                              (inc remaining-guesses))))
+                   n-words (count words)]
+               (debug n-words remaining-guesses)
+               (if (and (pos? n-words)
+                        (<= n-words remaining-guesses))
+                 ;; Distinguish between words by letter-frequency-weighted
+                 ;; probability?
+                 ;;
+                 ;; Words should decrease monotonically in proportion to
+                 ;; remaining-guesses; such that, if indeed we get here, we
+                 ;; should never move on. Therefore, let's not bother
+                 ;; setting last-guess to the word guessed.
+                 (let [word (nth words (rand-int n-words))]
+                   (reset! dictionary (search-and-dissoc @dictionary word))
+                   (debug 'GuessWord (word->string word))
+                   (new GuessWord (word->string word)))
+                 (if @last-guess
+                   (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
+                         predicates (string->predicates guessed-so-far (negative-predicate @last-guess))]
+                     (reset! dictionary (search-and-dissoc-predicate @dictionary predicates))
+                     (let [letter->frequency (count-trie @dictionary)
+                           guessed-letters
+                           (map (fn [letter] (char->letter (Character/toLowerCase letter)))
+                                (.getAllGuessedLetters game))
+                           letter->frequency
+                           (reduce
+                            (fn [letter->frequency [letter frequency]]
+                              (if (.contains guessed-letters letter)
+                                letter->frequency
+                                (assoc letter->frequency letter frequency)))
+                            {}
+                            letter->frequency)
+                           #_ (filter (fn [letter-frequency]
+                                     (not (.contains guessed-letters (first letter-frequency))))
+                                   letter->frequency)
+                           frequency->letter
+                           (into (sorted-map-by >) (map-invert letter->frequency))
+                           next-guess (second (first frequency->letter))]
+                       ;; (debug letter->frequency
+                       ;;        guessed-letters
+                       ;;        frequency->letter)
+                       ;; (debug @dictionary
+                       ;;        guessed-letters
+                       ;;        frequency->letter)
+                       (debug letter->frequency
+                              (map-invert letter->frequency)
+                              (map letter->char guessed-letters)
+                              (reduce
+                               (fn [map frequency-letter]
+                                 (assoc map
+                                   (letter->char (first frequency-letter))
+                                   (second frequency-letter)))
+                               (sorted-map)
+                               (count-trie @dictionary))
+                              (reduce
+                               (fn [map frequency-letter]
+                                 (assoc map
+                                   (first frequency-letter)
+                                   (letter->char (second frequency-letter))))
+                               (sorted-map-by >)
+                               frequency->letter)
+                              @last-guess
+                              (letter-trie->char-trie @dictionary)
+                              )
+                       (reset! last-guess next-guess)
+                       (debug 'GuessLetter (letter->char next-guess))
+                       (new GuessLetter (letter->char next-guess))))
+                   (let [letter->frequency (count-trie @dictionary)
+                         frequency->letter
+                         (into (sorted-map-by >) (map-invert letter->frequency))
+                         next-guess (second (first frequency->letter))]
                      (debug
-                      (with-call-cc
-                        (let-cc
-                         k
-                         (get-words-with-predicates-and-max-and-continuation
-                           k
-                           @dictionary
-                           (string->predicates guessed-so-far (negative-predicate @last-guess))))))
-                     (if (= (count words) 1)
-                       ;; TODO: We have to be able to remove this word from the
-                       ;; dictionary.
-                       (new GuessWord (word->string (first words)))
-                       (let [letter->frequency (count-trie-predicates @dictionary predicates)
-                             guessed-letters
-                             (map (fn [letter] (char->letter (Character/toLowerCase letter)))
-                                  (.getAllGuessedLetters game))
-                             letter->frequency
-                             (filter (fn [letter-frequency]
-                                       (not (.contains guessed-letters (first letter-frequency))))
-                                     letter->frequency)
-                             frequency->letter
-                             (into (sorted-map-by >) (map-invert letter->frequency))]
-                         ;; (debug letter->frequency
-                         ;;        guessed-letters
-                         ;;        frequency->letter)
-                         ;; (debug @dictionary
-                         ;;        guessed-letters
-                         ;;        frequency->letter)
-                         ;; (debug guessed-letters
-                         ;;        (count-trie @dictionary)
-                         ;;        frequency->letter
-                         ;;        @last-guess
-                         ;;        @dictionary
-                         ;;        )
-                         (reset! last-guess (second (first frequency->letter)))
-                         (new GuessLetter (char (+ 97 (second (first frequency->letter))))))))))
-               (let [letter->frequency (count-trie @dictionary)
-                     frequency->letter
-                     (into (sorted-map-by >) (map-invert letter->frequency))]
-                 (reset! last-guess (second (first frequency->letter)))
-                 (new GuessLetter (char (+ 97 (second (first frequency->letter)))))))))))
+                      (reduce
+                       (fn [map frequency-letter]
+                         (assoc map
+                           (first frequency-letter)
+                           (letter->char (second frequency-letter))))
+                       (sorted-map-by >)
+                       frequency->letter))
+                     (debug 'GuessLetter (letter->char next-guess))
+                     (reset! last-guess next-guess)
+                     (new GuessLetter (letter->char next-guess))))))))))
      
      (defmacro time-and-value [expr]
        `(let [start# (. System (nanoTime))
@@ -891,10 +965,11 @@
            )
        (debug
         (map (fn [word]
-               (cons word
-                     (time-and-value
-                      (run (new HangmanGame word 4)
-                           (make-trie-strategy (arity->trie (count word)))))))
+               (let [arity (count word)]
+                 (cons word
+                       (time-and-value
+                        (run (new HangmanGame word 4)
+                             (make-trie-strategy arity (arity->trie arity)))))))
              words)))
    #+END_SRC
 
@@ -1073,6 +1148,17 @@
   =count-trie=; what about =trie-sentinel?=: we don't have fixed-depth
   tries because of =search-and-dissoc=: how do we distinguish absent
   keys from bona fide words?
+
+  One of the invariants probably needs to be a depth-consistent trie;
+  otherwise, we get a lot of artifacts. How to purge
+  depth-inconsistent branches? It seems like, at some point, a branch
+  should have an unambiguous terminus which is depth-inconsistent. No:
+  search-and-dissoc should be depth-aware; instead of capping a
+  depth-inconsistent branch, we should delete it. Should we delete it,
+  anyway? Sentinels are for depth-appropriate termini;
+  search-and-dissoc won't create new depth-appropriate terminin. All
+  the depth-appropriate termini should have been created at
+  make-trie-dictionary.
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
