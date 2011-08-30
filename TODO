@@ -565,6 +565,33 @@
              '()
              (keys trie)))))
      
+     (defn words->frequencies [words]
+       (reduce (fn [frequencies word]
+                 (merge-with
+                  +
+                  frequencies
+                  (let [word (distinct word)]
+                    (zipmap word (replicate (count word) 1)))))
+               {}
+               words))
+     
+     #_ (defn get-words-and-frequencies-with-predicates
+       ([trie predicates]
+          (get-words-with-predicates trie predicates '() '() {}))
+       ([trie predicates words word frequencies]
+          ;; (debug trie words word)
+          (if (trie-sentinel? trie)
+            (let [word (reverse word)]
+              (if (every-predicate? predicates word)
+                (list word)
+                nil))
+            (reduce
+             (fn [words letter]
+               ;; (debug words letter (trie letter))
+               (concat (get-words-with-predicates (trie letter) predicates words (cons letter word)) words))
+             '()
+             (keys trie)))))
+     
      (defn get-words-with-predicates-and-max
        ([trie predicates]
           (get-words-with-predicates-and-max trie predicates nil))
@@ -649,7 +676,7 @@
                        '()
                        (keys trie)))))
      
-     (let [word1 '(1 2 3 4 5)
+     #_ (let [word1 '(1 2 3 4 5)
               word2 '(1 2 3 7 8)
               word3 '(9 2 3 7 8)
               trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
@@ -866,10 +893,11 @@
      
      ;; (def word? list?)
      
-     (defn make-trie-strategy [arity dictionary]
+     (defn make-trie-strategy [dictionary arity]
        ;; We have to resort to atoms here because we're using the
        ;; GuessingStrategy interface.
        (let [dictionary (atom dictionary)
+             frequencies (atom frequencies)
              last-guess (atom nil)]
          (reify
            GuessingStrategy
@@ -967,13 +995,118 @@
                      (reset! last-guess next-guess)
                      (new GuessLetter (letter->char next-guess))))))))))
      
+     (defn make-trie-strategy [dictionary words frequencies]
+       ;; We have to resort to atoms here because we're using the
+       ;; GuessingStrategy interface.
+       (let [dictionary (atom dictionary)
+             words (atom words)
+             frequencies (atom frequencies)
+             last-guess (atom nil)]
+         (reify
+           GuessingStrategy
+           (nextGuess [_ game]
+             ;; (debug (count-trie @dictionary)
+             ;;        @last-guess)
+             (let [remaining-guesses (.numWrongGuessesRemaining game)
+                   n-words (count words)]
+               (debug n-words remaining-guesses)
+               (if (and (pos? n-words)
+                        (<= n-words remaining-guesses))
+                 ;; Distinguish between words by letter-frequency-weighted
+                 ;; probability?
+                 ;;
+                 ;; Words should decrease monotonically in proportion to
+                 ;; remaining-guesses; such that, if indeed we get here, we
+                 ;; should never move on. Therefore, let's not bother
+                 ;; setting last-guess to the word guessed.
+                 (let [word (nth words (rand-int n-words))]
+                   (reset! dictionary (search-and-dissoc @dictionary word))
+                   (reset! words (remove #(= % word) words))
+                   (reset! frequencies (words->frequencies words))
+                   (debug 'GuessWord (word->string word))
+                   (new GuessWord (word->string word)))
+                 (if @last-guess
+                   (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
+                         predicates (string->predicates guessed-so-far (negative-predicate @last-guess))]
+                     (reset! dictionary (search-and-dissoc-predicate @dictionary predicates))
+                     (reset! words (get-words @dictionary))
+                     (reset! frequencies (words->frequencies words))
+                     (let [guessed-letters
+                           (map (fn [letter] (char->letter (Character/toLowerCase letter)))
+                                (.getAllGuessedLetters game))
+                           letter->frequency
+                           (reduce
+                            (fn [letter->frequency [letter frequency]]
+                              (if (.contains guessed-letters letter)
+                                letter->frequency
+                                (assoc letter->frequency letter frequency)))
+                            {}
+                            frequencies)
+                           #_ (filter (fn [letter-frequency]
+                                     (not (.contains guessed-letters (first letter-frequency))))
+                                   letter->frequency)
+                           frequency->letter
+                           (into (sorted-map-by >) (map-invert letter->frequency))
+                           next-guess (second (first frequency->letter))]
+                       ;; (debug letter->frequency
+                       ;;        guessed-letters
+                       ;;        frequency->letter)
+                       ;; (debug @dictionary
+                       ;;        guessed-letters
+                       ;;        frequency->letter)
+                       (debug letter->frequency
+                              (map-invert letter->frequency)
+                              (map letter->char guessed-letters)
+                              (reduce
+                               (fn [map frequency-letter]
+                                 (assoc map
+                                   (letter->char (first frequency-letter))
+                                   (second frequency-letter)))
+                               (sorted-map)
+                               (count-trie @dictionary))
+                              (reduce
+                               (fn [map frequency-letter]
+                                 (assoc map
+                                   (first frequency-letter)
+                                   (letter->char (second frequency-letter))))
+                               (sorted-map-by >)
+                               frequency->letter)
+                              @last-guess
+                              (letter-trie->char-trie @dictionary)
+                              )
+                       (reset! last-guess next-guess)
+                       (debug 'GuessLetter (letter->char next-guess))
+                       (new GuessLetter (letter->char next-guess))))
+                   (let [frequency->letter
+                         (into (sorted-map-by >) (map-invert @frequencies))
+                         next-guess (second (first frequency->letter))]
+                     (debug
+                      (reduce
+                       (fn [map frequency-letter]
+                         (assoc map
+                           (first frequency-letter)
+                           (letter->char (second frequency-letter))))
+                       (sorted-map-by >)
+                       frequency->letter))
+                     (debug 'GuessLetter (letter->char next-guess))
+                     (reset! last-guess next-guess)
+                     (new GuessLetter (letter->char next-guess))))))))))
+     
      (defmacro time-and-value [expr]
        `(let [start# (. System (nanoTime))
               ret# ~expr]
           [(/ (double (- (. System (nanoTime)) start#)) 1000000.0)
            ret#]))
      
-     (let [arity->trie (time (make-arity->trie-dictionary "words.txt"))
+     (let [arity->trie (make-arity->trie-dictionary "words.txt")
+           arity->frequencies (reduce (fn [arity->frequencies [arity trie]]
+                                      (assoc arity->frequencies arity (count-trie trie)))
+                                    {}
+                                    arity->trie)
+           arity->words (reduce (fn [arity->words [arity trie]]
+                                  (assoc arity->words arity (get-words trie)))
+                                {}
+                                arity->trie)
            words [
                   ;; "aardvark"
                   ;; "aardvark"
@@ -1055,7 +1188,10 @@
                  (cons word
                        (time-and-value
                         (run (new HangmanGame word 4)
-                             (make-trie-strategy arity (arity->trie arity)))))))
+                             (make-trie-strategy
+                              (arity->trie arity)
+                              (arity->words arity)
+                              (arity->frequencies arity)))))))
              words)))
    #+END_SRC
 
@@ -1249,6 +1385,290 @@
   Calculate frequencies at initialization; propagate frequencies to
   trie-strategy; update them at =get-words=; we can have a
   =get-words-until-stable-frequencies=, if necessary.
+
+  The only way to get frequencies from the trie is to prune non-viable
+  branches (e.g. branches capped at sub-arity).
+
+  If we could mutate the trie, I could propagate up and modify dirty
+  branches.
+
+  Trie search yields: leaves; another, for those leaves: frequencies.
+
+  #+BEGIN_SRC clojure
+    (use
+     'clojure.contrib.trace
+     'hangman.core
+     '[clojure.contrib.io :only (reader)]
+     'net.dnolen.clj-cont
+     '[clojure.set :only (difference map-invert)]
+     '[clojure.string :only (join)]
+     )
+    
+    (import '(com.factual.hangman
+              GuessingStrategy
+              GuessLetter
+              GuessWord
+              HangmanGame)
+            'java.lang.Character)
+    
+    (def trie-sentinel (gensym))
+    
+    (defn trie-sentinel? [object]
+      (= object trie-sentinel))
+    
+    (defn plumb
+      ([word] (plumb {} word))
+      ([trie word]
+         (if word
+           (let [letter (first word)]
+             (assoc (trie letter {})
+               letter
+               (plumb trie
+                      (next word))))
+           trie-sentinel)))
+    
+    ;;; We have to do all this current-depth business because we don't
+    ;;; have a properly pruned tree; we either have to do the work
+    ;;; up-front during search-and-dissoc, or we pay for it later.
+    ;;;
+    ;;; Let's think about what a proper search-and-dissoc might look like.
+    (defn count-trie
+      ([trie depth] (count-trie trie depth {} 1))
+      ([trie depth frequencies current-depth]
+         (if (trie-sentinel? trie)
+           (if (= depth current-depth)
+             frequencies
+             {})
+           (merge-with
+            +
+            frequencies
+            (reduce
+             (fn [frequencies key]
+               (merge-with
+                frequencies
+                (count-trie (trie key) depth frequencies (inc current-depth))))
+             (let [keys (keys trie)]
+               (zipmap
+                keys
+                (replicate (count keys) 1)))
+             (keys trie))))))
+    
+    (defn merge-tries [mergens mergendum]
+      (cond (or (trie-sentinel? mergens) (empty? mergens)) mergendum
+            (or (trie-sentinel? mergendum) (empty? mergendum)) mergens
+            :else (let [mergendum-key (first (keys mergendum))
+                        submergens (mergens mergendum-key)
+                        submergendum (mergendum mergendum-key)]
+                    (if (mergendum mergendum-key)
+                      (assoc mergens mergendum-key
+                             (merge-tries submergens submergendum))
+                      (assoc mergens mergendum-key
+                             (mergendum mergendum-key))))))
+    
+    (def wildcard-predicate (constantly true))
+    (defn positive-predicate [predicans]
+      (fn [predicandum] (= predicans predicandum)))
+    (defn negative-predicate [predicans]
+      (fn [predicandum] (not (= predicans predicandum))))
+    
+    (defn search-and-dissoc [trie predicates]
+      (if (or (empty? predicates)
+              (trie-sentinel? trie))
+        trie
+        (let [predicate (first predicates)
+              letters (filter predicate (keys trie))]
+          (if (empty? letters)
+            trie-sentinel
+            (reduce
+             (fn [subtrie letter]
+               (assoc subtrie
+                 letter
+                 (search-and-dissoc-predicate (trie letter) (next predicates))))
+             {}
+             letters)))))
+    
+    (defn get-words
+      ([trie depth] (get-words trie depth '() '() 1))
+      ([trie depth words word current-depth]
+         (debug trie depth words word current-depth)
+         (if (trie-sentinel? trie)
+           (if (= current-depth depth)
+             (list word)
+             nil)
+           (reduce
+            (fn [words letter]
+              (concat (get-words (trie letter) depth words (cons letter word) (inc current-depth)) words))
+            '()
+            (keys trie)))))
+    
+    (defn string->word [word]
+      (map (fn [letter] (- (int letter) 97)) word))
+    
+    (defn make-arity->trie-dictionary [file]
+      (with-open [input (reader file)]
+        (binding [*in* input]
+          ;; I would use read-lines here, but I've run into stack
+          ;; overflows.
+          (loop [word (read-line)
+                 arity->trie {}]
+            ;; (debug word arity->trie)
+            (if word
+              (recur (read-line)
+                     (let [arity (count word)
+                           trie (arity->trie arity)]
+                       (assoc arity->trie
+                         arity
+                         (merge-tries trie
+                                      (plumb (string->word word))))))
+              arity->trie)))))
+    
+    (defn char->letter [char]
+      (- (int char) 97))
+    
+    (defn string->predicates [string default-predicate]
+      (map (fn [char]
+             (if (= char HangmanGame/MYSTERY_LETTER)
+               default-predicate
+               (positive-predicate (char->letter char))))
+           string))
+    
+    (defn letter->char [letter]
+      (char (+ 97 letter)))
+    
+    (defn word->string [word]
+      (join (map letter->char word)))
+    
+    (defn letter-trie->char-trie
+      ([letter-trie]
+         (letter-trie->char-trie letter-trie {}))
+      ([letter-trie char-trie]
+         (if (trie-sentinel? letter-trie)
+           trie-sentinel
+           (reduce
+            (fn [trie letter]
+              (assoc trie
+                (letter->char letter)
+                (letter-trie->char-trie
+                 (letter-trie letter)
+                 {})))
+            char-trie
+            (keys letter-trie)))))
+    
+    (defmacro time-and-value [expr]
+      `(let [start# (. System (nanoTime))
+             ret# ~expr]
+         [(/ (double (- (. System (nanoTime)) start#)) 1000000.0)
+          ret#]))
+    
+    (defn make-trie-strategy [arity dictionary words letter->frequency]
+      (let [dictionary (atom dictionary)
+            words (atom words)
+            letter->frequency (atom letter->frequency)
+            last-guess (atom nil)]
+        (reify
+          GuessingStrategy
+          (nextGuess [_ game]
+            (let [remaining-guesses (.numWrongGuessesRemaining game)
+                  n-words (count @words)]
+              ;; When would n-words be zero? If a word came up not in the
+              ;; dictionary, I suppose.
+              (if (and (pos? n-words)
+                       (<= n-words remaining-guesses))
+                (let [word (nth @words (rand-int n-words))]
+                  (reset! words (remove #(= % word) @words))
+                  (debug (word->string word))
+                  (new GuessWord (word->string word)))
+                (if @last-guess
+                  (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
+                        predicates (string->predicates guessed-so-far (negative-predicate @last-guess))]
+                    (reset! dictionary (search-and-dissoc-predicate @dictionary predicates))
+                    (reset! words (get-words @dictionary arity))
+                    (reset! letter->frequency (count-trie @dictionary arity))
+                    (let [guessed-letters
+                          (map (fn [letter] (char->letter (Character/toLowerCase letter)))
+                               (.getAllGuessedLetters game))
+                          letter->frequency
+                          (reduce
+                           (fn [letter->frequency [letter frequency]]
+                             (if (.contains guessed-letters letter)
+                               letter->frequency
+                               (assoc letter->frequency letter frequency)))
+                           {}
+                           @letter->frequency)
+                          frequency->letter
+                          (into (sorted-map-by >) (map-invert letter->frequency))
+                          next-guess (second (first frequency->letter))]
+                      (debug letter->frequency
+                             (map-invert letter->frequency)
+                             (map letter->char guessed-letters)
+                             (reduce
+                              (fn [map frequency-letter]
+                                (assoc map
+                                  (letter->char (first frequency-letter))
+                                  (second frequency-letter)))
+                              (sorted-map)
+                              (count-trie @dictionary arity))
+                             (reduce
+                              (fn [map frequency-letter]
+                                (assoc map
+                                  (first frequency-letter)
+                                  (letter->char (second frequency-letter))))
+                              (sorted-map-by >)
+                              frequency->letter)
+                             @last-guess
+                             (letter-trie->char-trie @dictionary)
+                             )
+                      (reset! last-guess next-guess)
+                      (debug 'GuessLetter (letter->char next-guess))
+                      (new GuessLetter (letter->char next-guess))))
+                  (let [frequency->letter
+                        (into (sorted-map-by >) (map-invert @letter->frequency))
+                        next-guess (second (first frequency->letter))]
+                    (debug '@@@@@@@@@@@@@@@@@@@@@@@22)
+                    #_ (debug
+                     (reduce
+                      (fn [map frequency-letter]
+                        (assoc map
+                          (first frequency-letter)
+                          (letter->char (second frequency-letter))))
+                      (sorted-map-by >)
+                      frequency->letter))
+                      (debug 'GuessLetter (letter->char next-guess))
+                    (reset! last-guess next-guess)
+                    (new GuessLetter (letter->char next-guess))))))))))
+    
+    (let [arity->trie (make-arity->trie-dictionary "words-head.txt")
+          ;; It takes roughly 2 seconds to traverse a fresh trie: at the
+          ;; very least, would could couple these two activities.
+          arity->words
+          (reduce (fn [arity->words [arity trie]]
+                    (assoc arity->words arity (get-words trie arity)))
+                  {}
+                  arity->trie)
+          arity->letter->frequency
+          (reduce (fn [arity->letter->frequency [arity trie]]
+                    (assoc arity->letter->frequency arity (count-trie trie arity)))
+                  {}
+                  arity->trie)
+          words [
+                 "aah"
+                 ]]
+      (debug arity->trie
+             arity->words
+             arity->letter->frequency)
+      #_ (map (fn [word]
+             (let [arity (count word)]
+               (cons word
+                     (time-and-value
+                      (run (new HangmanGame word 4)
+                           (make-trie-strategy
+                            arity
+                            (arity->trie arity)
+                            (arity->words arity)
+                            (arity->letter->frequency arity)))))))
+           words))
+    
+  #+END_SRC
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
