@@ -1952,6 +1952,161 @@
   #+END_SRC
 
   Forget the trie-stuff: use predicates?
+
+  #+BEGIN_SRC clojure
+    (use
+     'hangman.core
+     '[clojure.contrib.generic.functor :only (fmap)]
+     '[clojure.set :only (map-invert)])
+    
+    (import '(com.factual.hangman
+              GuessingStrategy
+              GuessLetter
+              GuessWord
+              HangmanGame)
+            'java.lang.Character)
+    
+    (defn string->word [string]
+      (map char->letter string))
+    
+    (def wildcard-predicate (constantly true))
+    
+    (defn positive-predicate [predicans]
+      (fn [predicandum] (= predicans predicandum)))
+    
+    (defn negative-predicate [predicans]
+      (fn [predicandum] (not (= predicans predicandum))))
+    
+    (defn every-predicate? [predicates word]
+      (every? true?
+              (map (fn [letter predicate] (predicate letter))
+                   word
+                   predicates)))
+    
+    (defn filter-dictionary [predicates dictionary]
+      (filter (partial every-predicate? predicates) dictionary))
+    
+    (defn filter-dictionary-and-deduct-letter-count [predicates dictionary letter-count]
+      (let [letter-count (atom letter-count)
+            dictionary
+            (filter (fn [word]
+                      (let [predicated? (every-predicate? predicates word)]
+                        (if (not predicated?)
+                          (swap! letter-count
+                                 (fn [letter-count]
+                                   (merge-with
+                                    -
+                                    letter-count
+                                    (zipmap word (replicate (count word) 1))))))
+                        predicated?))
+                    dictionary)]
+        {:letter-count @letter-count
+         :dictionary dictionary}))
+    
+    (defn filter-dictionary-and-deduct-letter-count [predicates dictionary letter->count]
+      (let [letter->count (atom letter->count)
+            dictionary
+            (filter (fn [word]
+                      (let [predicated? (every-predicate? predicates word)]
+                        (if (not predicated?)
+                          (reset! letter->count
+                                  (merge-with
+                                   -
+                                   @letter->count
+                                   (zipmap word (replicate (count word) 1)))))
+                        predicated?))
+                    dictionary)]
+        {:letter->count letter->count
+         :dictionary dictionary}))
+    
+    ;;; We're forcing the seq here; we should investigate the time
+    ;;; tradeoff of lazy access.
+    (defn filter-dictionary-and-deduct-letter-count [predicates dictionary letter->count]
+      (let [letter->count (transient letter->count)
+            dictionary
+            (doall
+             (filter (fn [word]
+                       (let [predicated? (every-predicate? predicates word)]
+                         (if (not predicated?)
+                           (doseq
+                               [letter
+                                ;; Distinct is still really expensive
+                                ;; (letter->count is distinct, though,
+                                ;; isn't it)?
+                                (distinct word)]
+                             (assoc! letter->count letter (dec (letter->count letter 1)))))
+                         predicated?))
+                     dictionary))]
+        {:dictionary dictionary
+         :letter->count (persistent! letter->count)}))
+    
+    (defn make-arity->dictionary [file]
+      (with-open [input (reader file)]
+        (binding [*in* input]
+          (loop [string (read-line)
+                 arity->dictionary {}]
+            (if string
+              (recur (read-line)
+                     (let [arity (count string)
+                           dictionary (arity->dictionary arity (set '()))]
+                       (assoc arity->dictionary
+                         arity
+                         (cons (string->word string)
+                               dictionary))))
+              arity->dictionary)))))
+    
+    (defn count-letters [dictionary]
+      (reduce
+       (fn [letter->count word]
+         (merge-with
+          +
+          letter->count
+          (zipmap word (replicate (count word) 1))))
+       {}
+       dictionary))
+    
+    ;;; Let's merge with minus when we prune.
+    #_ (defn make-dictionary-strategy [dictionary letter->count]
+      (let [dictionary (atom dictionary)
+            letter->count (atom letter->count)
+            last-guess (atom nil)]
+        (reify
+          GuessingStrategy
+          (nextGuess [_ game]
+            (let [remaining-guesses (.numWrongGuessesRemaining)
+                  n-words (count @dictionary)]
+              (if (and (pos? n-words)
+                       (<= n-words remaining-guesses))
+                (let [word (nth @dictionary (rand-int n-words))]
+                  (new GuessWord (word->string word)))
+                (if @last-guess
+                  )))))))
+    
+    #_ (let [word1 '(1 2 3 4 5)
+          word2 '(1 2 3 7 8)
+          word3 '(9 2 3 7 8)
+          dictionary [word1 word2 word3]]
+      (debug (count-letters dictionary)))
+    
+    (let [arity->dictionary (time (make-arity->dictionary "words.txt"))
+          ;; This is still expensive (3000 msecs vs. 4000 msecs for a
+          ;; trie).
+          arity->count (time (fmap count-letters arity->dictionary))]
+      (debug
+       (time (filter-dictionary-and-deduct-letter-count
+              [
+               (positive-predicate 0)
+               (positive-predicate 0)
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               ]
+              (arity->dictionary 8)
+              (arity->count 8)))))
+  #+END_SRC
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
