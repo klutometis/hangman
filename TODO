@@ -1568,13 +1568,13 @@
     ;;; force a linear narrative here.
     (defn reduce-words [subreduce init trie predicates]
       (letfn [(reduce-words [reductum trie word]
-                (debug 'REDUCE-WORDS reductum trie word)
+                #_ (debug 'REDUCE-WORDS reductum trie word)
                 (if (trie-sentinel? trie)
                   (let [word (reverse word)]
-                    (debug 'TRIE-SENTINEL
-                           reductum
-                           trie
-                           word)
+                    #_ (debug 'TRIE-SENTINEL
+                              reductum
+                              trie
+                              word)
                     (if (every-predicate? predicates word)
                       (list word)
                       ;; Can we avoid propagating this to reduce? This
@@ -1585,18 +1585,39 @@
                      ;; This is getting applied for each depth of the
                      ;; recursion; really only want to subreduce on words,
                      ;; don't we?
-                     (debug 'SUPER-REDUCE
+                     #_ (debug 'SUPER-REDUCE
                             trie
                             (reduce-words reductum (trie letter) (cons letter word))
                             reductum
                             letter)
                      ;; (subreduce reductum (reduce-words reductum (trie letter) (cons letter word)))
-                     (subreduce reductum (reduce-words reductum (trie letter) (cons letter word)))
+                     (subreduce (reduce-words reductum (trie letter) (cons letter word)) reductum)
                      ;; (reduce-words reductum (trie letter) (cons letter word))
                      )
                    init
                    (keys trie))))]
         (reduce-words init trie '())))
+    
+    (let [word1 '(1 2 3 4 5)
+          word2 '(1 2 3 7 8)
+          word3 '(9 2 3 7 8)
+          trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
+      (debug '__________________________________________________)
+      (debug trie
+             (reduce-words
+              (fn [reductum word]
+                (debug 'SUBREDUCE reductum word)
+                (if word
+                  (concat reductum word)))
+              '()
+              trie
+              [
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               ])))
     
     (defn get-words-with-predicates
       ([trie predicates]
@@ -1614,26 +1635,6 @@
               (concat (get-words-with-predicates (trie letter) predicates words (cons letter word)) words))
             '()
             (keys trie)))))
-    
-    (let [word1 '(1 2 3 4 5)
-          word2 '(1 2 3 7 8)
-          word3 '(9 2 3 7 8)
-          trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
-      (debug '__________________________________________________)
-      (debug (reduce-words
-              (fn [reductum word]
-                (debug 'SUBREDUCE reductum word)
-                (if word
-                  (concat reductum word)))
-              '()
-              trie
-              [
-               wildcard-predicate
-               wildcard-predicate
-               wildcard-predicate
-               wildcard-predicate
-               wildcard-predicate
-               ])))
     
     (defn get-words
       ([trie depth] (get-words trie depth '() '() 0))
