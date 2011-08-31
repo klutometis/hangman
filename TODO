@@ -1427,18 +1427,62 @@
                       (next word))))
            trie-sentinel)))
     
+    (defn letter->char [letter]
+      (char (+ 97 letter)))
+    
+    (defn word->string [word]
+      (join (map letter->char word)))
+    
+    (defn words->strings [words]
+      (map word->string words))
+    
+    (defn letter->frequency-->char->frequency [letter->frequency]
+      (reduce (fn [char->frequency [letter frequency]]
+                (assoc char->frequency
+                  (letter->char letter)
+                  frequency))
+              (sorted-map)
+              letter->frequency))
+    
+    (defn letter-trie->char-trie
+      ([letter-trie]
+         (letter-trie->char-trie letter-trie {}))
+      ([letter-trie char-trie]
+         (if (trie-sentinel? letter-trie)
+           trie-sentinel
+           (reduce
+            (fn [trie letter]
+              (assoc trie
+                (letter->char letter)
+                (letter-trie->char-trie
+                 (letter-trie letter)
+                 {})))
+            char-trie
+            (keys letter-trie)))))
+    
     ;;; We have to do all this current-depth business because we don't
     ;;; have a properly pruned tree; we either have to do the work
     ;;; up-front during search-and-dissoc, or we pay for it later.
     ;;;
     ;;; Let's think about what a proper search-and-dissoc might look like.
-    (defn count-trie
-      ([trie depth] (count-trie trie depth {} 1))
-      ([trie depth frequencies current-depth]
+    #_ (defn count-trie
+      ([trie depth debug?] (count-trie trie depth {} 0 debug?))
+      ([trie depth frequencies current-depth debug?]
+         (if debug?
+           (debug (letter-trie->char-trie trie)
+                  depth
+                  (letter->frequency-->char->frequency frequencies)
+                  current-depth))
          (if (trie-sentinel? trie)
-           (if (= depth current-depth)
-             frequencies
-             {})
+           (do
+            (debug 'HARRRRRRRO
+                   trie
+                   depth
+                   current-depth
+                  (letter->frequency-->char->frequency frequencies))
+            (if (= depth current-depth)
+              frequencies
+              {}))
            (merge-with
             +
             frequencies
@@ -1446,7 +1490,7 @@
              (fn [frequencies key]
                (merge-with
                 frequencies
-                (count-trie (trie key) depth frequencies (inc current-depth))))
+                (count-trie (trie key) depth frequencies (inc current-depth) debug?)))
              (let [keys (keys trie)]
                (zipmap
                 keys
@@ -1471,6 +1515,19 @@
     (defn negative-predicate [predicans]
       (fn [predicandum] (not (= predicans predicandum))))
     
+    ;;; Can we somehow propagate the entire stack, and only assoc when we
+    ;;; have a terminal branch satisfying the predicates? It seems like
+    ;;; this could be accomplished somehow by reducing on the root and
+    ;;; performing a merge-tries.
+    ;;;
+    ;;; If we could crack this, it would solve (I think) the difficulties
+    ;;; we're having with count-trie and get-words w.r.t. arity
+    ;;; (depth). Call the new function `prune', for instance: it's simply
+    ;;; a leaf-finding exercise with predicates that merges with root;
+    ;;; similar to building up the dictionary to begin with. You give up
+    ;;; the efficencies of partial-tries, though.
+    ;;;
+    ;;; Partial tries: I wish we could make it work.
     (defn search-and-dissoc [trie predicates]
       (if (or (empty? predicates)
               (trie-sentinel? trie))
@@ -1483,17 +1540,106 @@
              (fn [subtrie letter]
                (assoc subtrie
                  letter
-                 (search-and-dissoc-predicate (trie letter) (next predicates))))
+                 (search-and-dissoc (trie letter) (next predicates))))
              {}
              letters)))))
     
+    ;;; As long as we're plumbing the depths of the trie: can't we find
+    ;;; suitable leaves, calculate frequencies and merge with root
+    ;;; simultaneously? They're all based on a leaf-finding exercise.
+    (defn prune [trie predicates]
+      )
+    
+    (defn every-predicate? [predicates string]
+      (and
+       ;; Only match exact strings (not substrings).
+       (= (count predicates)
+          (count string))
+       (every? true?
+               (map (fn [letter predicate] (predicate letter))
+                    string
+                    predicates))))
+    
+    ;;; `Predicates' is somewhat ad-hoc; could do this filtering, for
+    ;;; instance, in `reduce'. How do we perform this while avoiding
+    ;;; creating the words and iterating through their list?
+    (defn reduce-words [subreduce init trie predicates]
+      (letfn [(reduce-words [reductum trie word]
+                (debug 'REDUCE-WORDS reductum trie word)
+                (if (trie-sentinel? trie)
+                  (let [word (reverse word)]
+                    (debug 'TRIE-SENTINEL
+                           reductum
+                           trie
+                           word)
+                    (if (every-predicate? predicates word)
+                      word
+                      ;; Can we avoid propagating this to reduce? This
+                      ;; signifies no word.
+                      nil))
+                  (subreduce
+                   init
+                   (reduce
+                    (fn [reductum letter]
+                      ;; This is getting applied for each depth of the
+                      ;; recursion; really only want to subreduce on words,
+                      ;; don't we?
+                      (debug 'SUPER-REDUCE
+                             trie
+                             (reduce-words reductum (trie letter) (cons letter word))
+                             reductum
+                             letter)
+                      (subreduce reductum (reduce-words reductum (trie letter) (cons letter word)))
+                      ;; (reduce-words reductum (trie letter) (cons letter word))
+                      )
+                    init
+                    (keys trie)))))]
+        (reduce-words init trie '())))
+    
+    (defn get-words-with-predicates
+      ([trie predicates]
+         (get-words-with-predicates trie predicates '() '()))
+      ([trie predicates words word]
+         ;; (debug trie words word)
+         (if (trie-sentinel? trie)
+           (let [word (reverse word)]
+             (if (every-predicate? predicates word)
+               (list word)
+               nil))
+           (reduce
+            (fn [words letter]
+              ;; (debug words letter (trie letter))
+              (concat (get-words-with-predicates (trie letter) predicates words (cons letter word)) words))
+            '()
+            (keys trie)))))
+    
+    (let [word1 '(1 2 3 4 5)
+          word2 '(1 2 3 7 8)
+          word3 '(9 2 3 7 8)
+          trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
+      (debug '__________________________________________________)
+      (debug (reduce-words
+              (fn [reductum word]
+                (debug 'SUBREDUCE reductum word)
+                (if word
+                  (concat reductum (list word))))
+              '()
+              trie
+              [
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               wildcard-predicate
+               ])))
+    
     (defn get-words
-      ([trie depth] (get-words trie depth '() '() 1))
+      ([trie depth] (get-words trie depth '() '() 0))
       ([trie depth words word current-depth]
-         (debug trie depth words word current-depth)
+         ;; (debug trie depth words word current-depth)
          (if (trie-sentinel? trie)
            (if (= current-depth depth)
-             (list word)
+             (list (reverse word))
              nil)
            (reduce
             (fn [words letter]
@@ -1532,28 +1678,6 @@
                (positive-predicate (char->letter char))))
            string))
     
-    (defn letter->char [letter]
-      (char (+ 97 letter)))
-    
-    (defn word->string [word]
-      (join (map letter->char word)))
-    
-    (defn letter-trie->char-trie
-      ([letter-trie]
-         (letter-trie->char-trie letter-trie {}))
-      ([letter-trie char-trie]
-         (if (trie-sentinel? letter-trie)
-           trie-sentinel
-           (reduce
-            (fn [trie letter]
-              (assoc trie
-                (letter->char letter)
-                (letter-trie->char-trie
-                 (letter-trie letter)
-                 {})))
-            char-trie
-            (keys letter-trie)))))
-    
     (defmacro time-and-value [expr]
       `(let [start# (. System (nanoTime))
              ret# ~expr]
@@ -1581,9 +1705,12 @@
                 (if @last-guess
                   (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
                         predicates (string->predicates guessed-so-far (negative-predicate @last-guess))]
-                    (reset! dictionary (search-and-dissoc-predicate @dictionary predicates))
+                    (reset! dictionary (search-and-dissoc @dictionary predicates))
                     (reset! words (get-words @dictionary arity))
-                    (reset! letter->frequency (count-trie @dictionary arity))
+                    (reset! letter->frequency (count-trie @dictionary arity true))
+                    (debug '!!!!!!!!!!!!!!!!!!!!
+                           (letter->frequency-->char->frequency @letter->frequency)
+                           (words->strings @words))
                     (let [guessed-letters
                           (map (fn [letter] (char->letter (Character/toLowerCase letter)))
                                (.getAllGuessedLetters game))
@@ -1598,7 +1725,7 @@
                           frequency->letter
                           (into (sorted-map-by >) (map-invert letter->frequency))
                           next-guess (second (first frequency->letter))]
-                      (debug letter->frequency
+                      #_ (debug letter->frequency
                              (map-invert letter->frequency)
                              (map letter->char guessed-letters)
                              (reduce
@@ -1607,7 +1734,7 @@
                                   (letter->char (first frequency-letter))
                                   (second frequency-letter)))
                               (sorted-map)
-                              (count-trie @dictionary arity))
+                              (count-trie @dictionary arity true))
                              (reduce
                               (fn [map frequency-letter]
                                 (assoc map
@@ -1615,7 +1742,7 @@
                                   (letter->char (second frequency-letter))))
                               (sorted-map-by >)
                               frequency->letter)
-                             @last-guess
+                             (letter->char @last-guess)
                              (letter-trie->char-trie @dictionary)
                              )
                       (reset! last-guess next-guess)
@@ -1624,8 +1751,7 @@
                   (let [frequency->letter
                         (into (sorted-map-by >) (map-invert @letter->frequency))
                         next-guess (second (first frequency->letter))]
-                    (debug '@@@@@@@@@@@@@@@@@@@@@@@22)
-                    #_ (debug
+                    (debug
                      (reduce
                       (fn [map frequency-letter]
                         (assoc map
@@ -1637,7 +1763,7 @@
                     (reset! last-guess next-guess)
                     (new GuessLetter (letter->char next-guess))))))))))
     
-    (let [arity->trie (make-arity->trie-dictionary "words-head.txt")
+    #_ (let [arity->trie (make-arity->trie-dictionary "words-head.txt")
           ;; It takes roughly 2 seconds to traverse a fresh trie: at the
           ;; very least, would could couple these two activities.
           arity->words
@@ -1647,27 +1773,29 @@
                   arity->trie)
           arity->letter->frequency
           (reduce (fn [arity->letter->frequency [arity trie]]
-                    (assoc arity->letter->frequency arity (count-trie trie arity)))
+                    (assoc arity->letter->frequency arity (count-trie trie arity false)))
                   {}
                   arity->trie)
           words [
-                 "aah"
+                 ;; "oses"
+                 ;; "aal"
+                 "abas"
                  ]]
-      (debug arity->trie
+      #_ (debug arity->trie
              arity->words
              arity->letter->frequency)
-      #_ (map (fn [word]
-             (let [arity (count word)]
-               (cons word
-                     (time-and-value
-                      (run (new HangmanGame word 4)
-                           (make-trie-strategy
-                            arity
-                            (arity->trie arity)
-                            (arity->words arity)
-                            (arity->letter->frequency arity)))))))
-           words))
-    
+      (debug
+       (map (fn [word]
+              (let [arity (count word)]
+                (cons word
+                      (time-and-value
+                       (run (new HangmanGame word 4)
+                            (make-trie-strategy
+                             arity
+                             (arity->trie arity)
+                             (arity->words arity)
+                             (arity->letter->frequency arity)))))))
+            words)))
   #+END_SRC
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
