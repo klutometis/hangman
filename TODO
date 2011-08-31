@@ -1563,6 +1563,9 @@
     ;;; `Predicates' is somewhat ad-hoc; could do this filtering, for
     ;;; instance, in `reduce'. How do we perform this while avoiding
     ;;; creating the words and iterating through their list?
+    ;;;
+    ;;; Distinguish between outer and inner reduction? We're trying to
+    ;;; force a linear narrative here.
     (defn reduce-words [subreduce init trie predicates]
       (letfn [(reduce-words [reductum trie word]
                 (debug 'REDUCE-WORDS reductum trie word)
@@ -1573,27 +1576,26 @@
                            trie
                            word)
                     (if (every-predicate? predicates word)
-                      word
+                      (list word)
                       ;; Can we avoid propagating this to reduce? This
                       ;; signifies no word.
                       nil))
-                  (subreduce
+                  (reduce
+                   (fn [reductum letter]
+                     ;; This is getting applied for each depth of the
+                     ;; recursion; really only want to subreduce on words,
+                     ;; don't we?
+                     (debug 'SUPER-REDUCE
+                            trie
+                            (reduce-words reductum (trie letter) (cons letter word))
+                            reductum
+                            letter)
+                     ;; (subreduce reductum (reduce-words reductum (trie letter) (cons letter word)))
+                     (subreduce reductum (reduce-words reductum (trie letter) (cons letter word)))
+                     ;; (reduce-words reductum (trie letter) (cons letter word))
+                     )
                    init
-                   (reduce
-                    (fn [reductum letter]
-                      ;; This is getting applied for each depth of the
-                      ;; recursion; really only want to subreduce on words,
-                      ;; don't we?
-                      (debug 'SUPER-REDUCE
-                             trie
-                             (reduce-words reductum (trie letter) (cons letter word))
-                             reductum
-                             letter)
-                      (subreduce reductum (reduce-words reductum (trie letter) (cons letter word)))
-                      ;; (reduce-words reductum (trie letter) (cons letter word))
-                      )
-                    init
-                    (keys trie)))))]
+                   (keys trie))))]
         (reduce-words init trie '())))
     
     (defn get-words-with-predicates
@@ -1622,7 +1624,7 @@
               (fn [reductum word]
                 (debug 'SUBREDUCE reductum word)
                 (if word
-                  (concat reductum (list word))))
+                  (concat reductum word)))
               '()
               trie
               [
