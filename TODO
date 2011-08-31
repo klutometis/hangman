@@ -1497,6 +1497,25 @@
                 (replicate (count keys) 1)))
              (keys trie))))))
     
+    (defn count-trie
+      ([trie] (count-trie {} trie))
+      ([frequencies trie]
+         (if (not (trie-sentinel? trie))
+           (merge-with
+            +
+            frequencies
+            (reduce
+             (fn [frequencies key]
+               (merge-with
+                frequencies
+                (count-trie frequencies (trie key))))
+             (let [keys (keys trie)]
+               (zipmap
+                keys
+                (replicate (count keys) 1)))
+             (keys trie)))
+           frequencies)))
+    
     (defn merge-tries [mergens mergendum]
       (cond (or (trie-sentinel? mergens) (empty? mergens)) mergendum
             (or (trie-sentinel? mergendum) (empty? mergendum)) mergens
@@ -1544,12 +1563,6 @@
              {}
              letters)))))
     
-    ;;; As long as we're plumbing the depths of the trie: can't we find
-    ;;; suitable leaves, calculate frequencies and merge with root
-    ;;; simultaneously? They're all based on a leaf-finding exercise.
-    (defn prune [trie predicates]
-      )
-    
     (defn every-predicate? [predicates string]
       (and
        ;; Only match exact strings (not substrings).
@@ -1567,14 +1580,16 @@
     ;;; Distinguish between outer and inner reduction? We're trying to
     ;;; force a linear narrative here.
     (defn reduce-words [subreduce init trie predicates]
-      (letfn [(reduce-words [reductum trie word]
-                #_ (debug 'REDUCE-WORDS reductum trie word)
+      (letfn [(reduce-words [k reductum trie word]
+                (debug 'REDUCE-WORDS reductum trie word)
                 (if (trie-sentinel? trie)
                   (let [word (reverse word)]
-                    #_ (debug 'TRIE-SENTINEL
-                              reductum
-                              trie
-                              word)
+                    (debug
+                     'TRIE-SENTINEL
+                     ;; reductum
+                     ;; trie
+                     word
+                     )
                     (if (every-predicate? predicates word)
                       (list word)
                       ;; Can we avoid propagating this to reduce? This
@@ -1591,33 +1606,63 @@
                             reductum
                             letter)
                      ;; (subreduce reductum (reduce-words reductum (trie letter) (cons letter word)))
-                     (subreduce (reduce-words reductum (trie letter) (cons letter word)) reductum)
+                     (subreduce (reduce-words k reductum (trie letter) (cons letter word)) reductum)
                      ;; (reduce-words reductum (trie letter) (cons letter word))
                      )
                    init
                    (keys trie))))]
-        (reduce-words init trie '())))
+        (with-call-cc
+          (let-cc
+           k
+           (reduce-words k init trie '())))))
     
+    (defn map-trie
+      ([map trie predicates]
+         (map-trie map trie predicates '() '()))
+      ([map trie predicates words word]
+         ;; (debug trie words word)
+         (if (trie-sentinel? trie)
+           (let [word (reverse word)]
+             (if (every-predicate? predicates word)
+               (list (map word))
+               nil))
+           (reduce
+            (fn [words letter]
+              ;; (debug words letter (trie letter))
+              (concat (map-trie map (trie letter) predicates words (cons letter word)) words))
+            '()
+            (keys trie)))))
+    
+    ;;; As long as we're plumbing the depths of the trie: can't we find
+    ;;; suitable leaves, calculate frequencies and merge with root
+    ;;; simultaneously? They're all based on a leaf-finding exercise.
+    (defn prune [trie predicates]
+      (reduce merge-tries {} (map-trie plumb trie predicates)))
+    
+    ;;; Building the tree from scratch is redoing a lot of work; we should
+    ;;; scrap this mechanism, I think.
+    ;;;
+    ;;; Or: store the dictionary as a list of words; build the trie and
+    ;;; count the frequencies as necessary; apply the predicates (which
+    ;;; are less general than regular expressions).
     (let [word1 '(1 2 3 4 5)
           word2 '(1 2 3 7 8)
           word3 '(9 2 3 7 8)
           trie (reduce merge-tries {} (map plumb (list word1 word2 word3)))]
       (debug '__________________________________________________)
       (debug trie
-             (reduce-words
-              (fn [reductum word]
-                (debug 'SUBREDUCE reductum word)
-                (if word
-                  (concat reductum word)))
-              '()
-              trie
-              [
-               wildcard-predicate
-               wildcard-predicate
-               wildcard-predicate
-               wildcard-predicate
-               wildcard-predicate
-               ])))
+             (count-trie
+              (prune trie
+                     [wildcard-predicate
+                      wildcard-predicate
+                      wildcard-predicate
+                      (positive-predicate 7)
+                      wildcard-predicate]))
+             (map-trie
+              (fn [word]
+                {:word word
+                 :trie (plumb word)
+                 :frequencies ()}))))
     
     (defn get-words-with-predicates
       ([trie predicates]
@@ -1799,6 +1844,100 @@
                              (arity->words arity)
                              (arity->letter->frequency arity)))))))
             words)))
+  #+END_SRC
+
+  #+BEGIN_SRC clojure
+    (use
+     'hangman.core)
+    
+    (defn string->word [string]
+      (map char->letter string))
+    
+    (def trie-sentinel (gensym))
+    
+    (defn trie-sentinel? [object]
+      (= object trie-sentinel))
+    
+    (defn word->trie [trie word]
+      (if word
+        (let [letter (first word)]
+          (assoc trie
+            letter
+            (word->trie (trie letter {}) (next word))))
+        trie-sentinel))
+    
+    (defn words->trie [words]
+      (reduce #(word->trie %1 %2) {} words))
+    
+    (defn count-trie
+      ([trie] (count-trie {} trie))
+      ([frequencies trie]
+         (if (not (trie-sentinel? trie))
+           (merge-with
+            +
+            frequencies
+            (reduce
+             (fn [frequencies key]
+               (merge-with
+                frequencies
+                (count-trie frequencies (trie key))))
+             (let [keys (keys trie)]
+               (zipmap
+                keys
+                (replicate (count keys) 1)))
+             (keys trie)))
+           frequencies)))
+    
+    (def wildcard-predicate (constantly true))
+    
+    (defn positive-predicate [predicans]
+      (fn [predicandum] (= predicans predicandum)))
+    
+    (defn negative-predicate [predicans]
+      (fn [predicandum] (not (= predicans predicandum))))
+    
+    (defn every-predicate? [predicates word]
+      (every? true?
+              (map (fn [letter predicate] (predicate letter))
+                   word
+                   predicates)))
+    
+    (defn filter-words [predicates words]
+      (filter (partial every-predicate? predicates) words))
+    
+    (defn make-arity->dictionary [file]
+      (with-open [input (reader file)]
+        (binding [*in* input]
+          (loop [string (read-line)
+                 arity->dictionary {}]
+            (if string
+              (recur (read-line)
+                     (let [arity (count string)
+                           dictionary (arity->dictionary arity {})]
+                       (assoc arity->dictionary
+                         arity
+                         (cons (string->word string)
+                               (dictionary arity)))))
+              arity->dictionary)))))
+    
+    (let [word1 '(1 2 3 4 5)
+          word2 '(1 2 3 7 8)
+          word3 '(9 2 3 7 8)
+          words [word1 word2 word3]
+          trie (words->trie words)]
+      (debug (assert (= trie
+                        {9 {2 {3 {7 {8 trie-sentinel}}}},
+                         1 {2 {3 {7 {8 trie-sentinel}, 4 {5 trie-sentinel}}}}}))
+             (assert (= (count-trie trie)
+                        {9 1, 1 1, 3 2, 8 2, 7 2, 2 2, 5 1, 4 1}))
+             (assert (= (filter-words [wildcard-predicate
+                                       wildcard-predicate
+                                       wildcard-predicate
+                                       (positive-predicate 7)
+                                       wildcard-predicate]
+                                      words)
+                        '((1 2 3 7 8) (9 2 3 7 8))))))
+    
   #+END_SRC
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
