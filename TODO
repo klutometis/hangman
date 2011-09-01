@@ -2122,8 +2122,6 @@
         (fmap #(float (/ % total)) letter->count)))
     
     (def *delta-percentage-tolerance* 1.0e-5)
-    (def *sampling-frequency* 100)
-    (def *ratio-to-n-of-minimum-iterations* 2)
     
     ;;; We have to try to make sure the map is tolerably stable and
     ;;; complete. Might want to consider some minimum number of runs as a
@@ -2164,6 +2162,46 @@
                          (next dictionary)
                          (inc iteration))))
               letter->count)))))
+    
+    (def *sampling-frequency* 100)
+    
+    (def *ratio-to-n-of-minimum-iterations* 2)
+    
+    ;;; Should we do some running average to establish stability? Also,
+    ;;; should last-letter->count be from *sampling-frequency* iterations
+    ;;; or one iteration ago?
+    (defn sufficiently-stable? [last-letter->count letter->count]
+      (let [last-letter->percentage (letter->count-->letter->percentage last-letter->count)
+            letter->percentage (letter->count-->letter->percentage letter->count)
+            delta-letter->percentage
+            (merge-with - letter->percentage last-letter->percentage)]
+        (< (apply + (vals delta-letter->percentage))
+           *delta-percentage-tolerance*)))
+    
+    (defn count-letters [dictionary]
+      (debug '*******************************************
+             (count (first dictionary))
+             (count dictionary))
+      (let [minimum-iterations
+            (/ (count dictionary) *ratio-to-n-of-minimum-iterations*)]
+        (loop [last-letter->count {}
+               letter->count {}
+               dictionary (shuffle dictionary)
+               iteration 0]
+          (if dictionary
+            (if (and (> iteration minimum-iterations)
+                     (zero? (mod iteration *sampling-frequency*))
+                     (sufficiently-stable? last-letter->count letter->count))
+              letter->count
+              (let [word (first dictionary)]
+                (recur letter->count
+                       (merge-with
+                        +
+                        letter->count
+                        (zipmap word (replicate (count word) 1)))
+                       (next dictionary)
+                       (inc iteration))))
+            letter->count))))
     
     ;;; Let's merge with minus when we prune.
     (defn make-dictionary-strategy [dictionary letter->count]
@@ -2269,17 +2307,17 @@
                  ]]
       (profile
        (debug
-        ;; arity->count
-        ;; (zipmap
-        ;;  words
-        ;;  (map (fn [word]
-        ;;         (let [arity (count word)]
-        ;;           (time-and-value
-        ;;            (run (new HangmanGame word 4)
-        ;;                 (make-dictionary-strategy
-        ;;                  (arity->dictionary arity)
-        ;;                  (arity->count arity))))))
-        ;;       words))
+        arity->count
+        (zipmap
+         words
+         (map (fn [word]
+                (let [arity (count word)]
+                  (time-and-value
+                   (run (new HangmanGame word 4)
+                        (make-dictionary-strategy
+                         (arity->dictionary arity)
+                         (arity->count arity))))))
+              words))
         )))
     
     ;;; every?, negative-predicate, merge-with; next, cons.
