@@ -1969,7 +1969,9 @@
      'clojure.contrib.profile
      'hangman.core
      '[clojure.contrib.generic.functor :only (fmap)]
-     '[clojure.set :only (map-invert)])
+     '[clojure.set :only (map-invert)]
+     '[clojure.string :only (join)]
+     '[clojure.contrib.io :only (reader)])
     
     (import '(com.factual.hangman
               GuessingStrategy
@@ -1977,6 +1979,9 @@
               GuessWord
               HangmanGame)
             'java.lang.Character)
+    
+    (defn char->letter [char]
+      (- (int char) 97))
     
     (defn string->word [string]
       (map char->letter string))
@@ -2006,6 +2011,14 @@
     (defn negative-predicate [predicans]
       (fn [predicandum] (not (= predicans predicandum))))
     
+    (defn string->predicates [string default-predicate]
+      (map (fn [char]
+             (if (= char HangmanGame/MYSTERY_LETTER)
+               default-predicate
+               (positive-predicate (char->letter char))))
+           string))
+    
+    ;;; This is significantly slower, for some reason: destructuring?
     (defn every-predicate? [predicates word]
       (every? (fn [[predicate letter]] (predicate letter))
               (zipmap predicates word)))
@@ -2104,51 +2117,53 @@
        {}
        dictionary))
     
-    (defn count-letters [dictionary]
-      (reduce
-       (fn [letter->count word]
-         (merge-with
-          +
-          letter->count
-          (zipmap word (replicate (count word) 1))))
-       {}
-       dictionary))
-    
     (defn letter->count-->letter->percentage [letter->count]
       (let [total (apply + (vals letter->count))]
         (fmap #(float (/ % total)) letter->count)))
     
     (def *delta-percentage-tolerance* 1.0e-5)
+    (def *sampling-frequency* 100)
+    (def *ratio-to-n-of-minimum-iterations* 2)
     
     ;;; We have to try to make sure the map is tolerably stable and
     ;;; complete. Might want to consider some minimum number of runs as a
     ;;; function, say, of dictionary size.
     (defn count-letters [dictionary]
-      ;; (debug '*******************************************)
-      (loop [last-letter->percentage {}
-             letter->count {}
-             dictionary dictionary]
-        (let [letter->percentage (letter->count-->letter->percentage letter->count)
-              delta-letter->percentage
-              (merge-with - letter->percentage last-letter->percentage)]
-          ;; (debug (apply + (vals delta-letter->percentage))
-          ;;        (= (count last-letter->percentage)
-          ;;           (count letter->count)))
-          (if dictionary
-            (if (and (= (count last-letter->percentage)
+      (debug '*******************************************
+             (count (first dictionary))
+             (count dictionary))
+      (let [minimum-iterations (/ (count dictionary) *ratio-to-n-of-minimum-iterations*)]
+        (loop [last-letter->percentage {}
+               letter->count {}
+               dictionary (shuffle dictionary)
+               iteration 0]
+          (let [letter->percentage (letter->count-->letter->percentage letter->count)
+                delta-letter->percentage
+                (merge-with - letter->percentage last-letter->percentage)
+                sufficiently-stable?
+                (and (= (count last-letter->percentage)
                         (count letter->count))
                      (not (empty? letter->count))
                      (< (apply + (vals delta-letter->percentage))
-                        *delta-percentage-tolerance*))
-              letter->count
-              (let [word (first dictionary)]
-                (recur letter->percentage
-                       (merge-with
-                        +
-                        letter->count
-                        (zipmap word (replicate (count word) 1)))
-                       (next dictionary))))
-            letter->count))))
+                        *delta-percentage-tolerance*)
+                     (> iteration minimum-iterations))]
+            ;; (debug (< (apply + (vals delta-letter->percentage))
+            ;;           *delta-percentage-tolerance*)
+            ;;        (= (count last-letter->percentage)
+            ;;           (count letter->count)))
+            ;; (debug sufficiently-stable?)
+            (if dictionary
+              (if sufficiently-stable?
+                letter->count
+                (let [word (first dictionary)]
+                  (recur letter->percentage
+                         (merge-with
+                          +
+                          letter->count
+                          (zipmap word (replicate (count word) 1)))
+                         (next dictionary)
+                         (inc iteration))))
+              letter->count)))))
     
     ;;; Let's merge with minus when we prune.
     (defn make-dictionary-strategy [dictionary letter->count]
@@ -2183,7 +2198,7 @@
                      ;; (debug letter->count)
                      ;; (reset! dictionary new-dictionary)
                      ;; (reset! letter->count new-letter->count)
-                     (debug (into (sorted-map-by >) (map-invert (letter->count-->char->count @letter->count))))
+                     ;; (debug (into (sorted-map-by >) (map-invert (letter->count-->char->count @letter->count))))
                      ;; Weird that we have to do this filtering in the
                      ;; first place, given that we've just pruned the
                      ;; dictionary!
@@ -2255,16 +2270,16 @@
       (profile
        (debug
         ;; arity->count
-        (zipmap
-         words
-         (map (fn [word]
-                (let [arity (count word)]
-                  (time-and-value
-                   (run (new HangmanGame word 4)
-                        (make-dictionary-strategy
-                         (arity->dictionary arity)
-                         (arity->count arity))))))
-              words))
+        ;; (zipmap
+        ;;  words
+        ;;  (map (fn [word]
+        ;;         (let [arity (count word)]
+        ;;           (time-and-value
+        ;;            (run (new HangmanGame word 4)
+        ;;                 (make-dictionary-strategy
+        ;;                  (arity->dictionary arity)
+        ;;                  (arity->count arity))))))
+        ;;       words))
         )))
     
     ;;; every?, negative-predicate, merge-with; next, cons.
