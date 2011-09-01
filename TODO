@@ -1983,9 +1983,11 @@
      'clojure.contrib.profile
      'hangman.core
      '[clojure.contrib.generic.functor :only (fmap)]
+     '[clojure.contrib.math :only (abs)]
      '[clojure.set :only (map-invert)]
      '[clojure.string :only (join)]
-     '[clojure.contrib.io :only (reader)])
+     '[clojure.contrib.io :only (reader)]
+     '[clojure.pprint :only (pprint)])
     
     (import '(com.factual.hangman
               GuessingStrategy
@@ -2316,6 +2318,46 @@
                      (new GuessLetter (letter->char next-guess)))))
                ))))))
     
+    (defn make-dictionary-strategy [dictionary letter->count]
+      (let [dictionary (atom dictionary)
+            letter->count (atom letter->count)
+            last-guess (atom nil)]
+        (reify
+          GuessingStrategy
+          (nextGuess [_ game]
+            (do
+              (if @last-guess
+                (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
+                      predicates (string->predicates guessed-so-far (negative-predicate @last-guess))]
+                  (reset! dictionary (filter-dictionary predicates @dictionary))
+                  (reset! letter->count (count-letters @dictionary))))
+              (let [remaining-guesses (.numWrongGuessesRemaining game)
+                    n-words (count @dictionary)]
+                (if (and (pos? n-words)
+                         (<= n-words remaining-guesses))
+                  (let [word (nth @dictionary (rand-int n-words))]
+                    (debug 'GuessWord (word->string word))
+                    (reset! dictionary (remove #(= % word) @dictionary))
+                    (reset! last-guess nil)
+                    (new GuessWord (word->string word)))
+                  (let [guessed-letters
+                        ;; Also, #(-> % Character/toLowerCase
+                        ;; char->letter); `->' is like a
+                        ;; forward-chaining `comp', I guess. Something
+                        ;; about placement, though, vs. `->>'.
+                        (map #(-> % Character/toLowerCase char->letter)
+                             (.getAllGuessedLetters game))
+                        ;; Devaluate letters already-guessed.
+                        letter->count
+                        (merge @letter->count
+                               (zipmap guessed-letters (replicate (count guessed-letters) 0)))
+                        count->letter
+                        (into (sorted-map-by >) (map-invert letter->count))
+                        next-guess (count->letter (apply max (keys count->letter)))]
+                    (reset! last-guess next-guess)
+                    (debug 'GuessLetter (letter->char next-guess))
+                    (new GuessLetter (letter->char next-guess))))))))))
+    
     #_ (let [word1 '(1 2 3 4 5)
           word2 '(1 2 3 7 8)
           word3 '(9 2 3 7 8)
@@ -2327,22 +2369,6 @@
              ret# ~expr]
          [(/ (double (- (. System (nanoTime)) start#)) 1000000.0)
           ret#]))
-    
-    {"comaker" [269.192986 11],
-     "cumulative" [227.544676 6],
-     "eruptive" [73.002197 8],
-     "factual" [256.03295 25],
-     "monadism" [287.633228 8],
-     "mus" [27.553267 25],
-     "nagging" [264.223448 5],
-     "oses" [55.23997 4],
-     "remembered" [66.713347 6],
-     "spodumenes" [92.050017 6],
-     "stereoisomers" [49.081876 3],
-     "toxics" [194.52453 9],
-     "trichromats" [142.528282 4],
-     "triose" [83.375216 7],
-     "uniformed" [211.739498 9]}
     
     (def words
       '("comaker"
@@ -2409,7 +2435,7 @@
       (let [vals (map key (vals data))]
         (float (/ (reduce + vals) (count vals)))))
     
-    (debug
+    (pprint
      (let [arity->dictionary (make-arity->dictionary "words.txt")
            arity->count (fmap count-letters arity->dictionary)]
        (let [time-scores
@@ -2426,8 +2452,8 @@
                                      [time score]]
                                   (let [delta-time (- time initial-time)
                                         delta-score (- score reference-score)]
-                                    (let [percent-change-time (/ delta-time initial-time)
-                                          percent-change-score (float (/ delta-score reference-score))]
+                                    (let [percent-change-time (* 100 (abs (/ delta-time initial-time)))
+                                          percent-change-score (* 100 (abs (float (/ delta-score reference-score))))]
                                       {:time time
                                        :delta-time delta-time
                                        :percent-change-time percent-change-time
