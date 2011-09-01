@@ -1,4 +1,29 @@
 # -*- org -*-
+* TODO Rationale
+  I went through three implementations before I found one with
+  acceptable performance characteristics: regular-expression based,
+  trie-based and sample-based. They all fell into a common pattern:
+  prune the dictionary on last guess; and, if the ratio of remaining
+  words to guesses looks good, guess a word; otherwise, rank the
+  letters by frequency and guess a letter.
+
+  The three implementations differed in the mechanism for storing the
+  dictionary, pruning the dictionary and ranking the letters by
+  frequency.
+
+  The trie-based strategy stored the dictionary as a sparse 26-ary
+  trie. I had hoped that the trie-based strategy would be the most
+  efficient, since search, deletion and insertion happen in O(log_26
+  n); but traversal time, nominally O(n), ended up dominating.
+
+  The trie-based strategy required significant initialization time;
+  and there was an interesting process of trie-degeneration during
+  pruning that resulted in specious frequency counts.
+
+  The regex- and sampling-strategies apply predicates to strings and
+  count letters linearly; the difference is that the sampling-strategy
+  works on integer strings and stops counting when the ratios of
+  letters are sufficiently stable.
 * TODO Experimental setup
   Would like to have a table at the end that compares the scores of
   the regex, trie and string implementations against the reference
