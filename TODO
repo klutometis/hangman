@@ -1,4 +1,8 @@
 # -*- org -*-
+* TODO Experimental setup
+  Would like to have a table at the end that compares the scores of
+  the regex, trie and string implementations against the reference
+  times (as well as each other's); in addition to score.
 * TODO Frequency strategy
   It turns out that we're replicating frequency-based strategy again
   and again: the only difference is the storage mechanism for
