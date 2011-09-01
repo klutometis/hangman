@@ -7,6 +7,12 @@
   Also, let's create some graphs; adding them, for instance, to the
   TODO. (Just in case they gnuplot, etc. don't exist on the target
   machine.)
+
+  Some kind of matrix, which is: implementation's time and deviation
+  from the best time; implementation's score and deviation from the
+  best score.
+
+  This should be overviewable, too.
 * TODO Frequency strategy
   It turns out that we're replicating frequency-based strategy again
   and again: the only difference is the storage mechanism for
