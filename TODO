@@ -2107,21 +2107,9 @@
                                dictionary))))
               arity->dictionary)))))
     
-    (defn count-letters [dictionary]
-      (reduce
-       (fn [letter->count word]
-         (merge-with
-          +
-          letter->count
-          (zipmap word (replicate (count word) 1))))
-       {}
-       dictionary))
-    
     (defn letter->count-->letter->percentage [letter->count]
       (let [total (apply + (vals letter->count))]
         (fmap #(float (/ % total)) letter->count)))
-    
-    (def *delta-percentage-tolerance* 1.0e-5)
     
     ;;; We have to try to make sure the map is tolerably stable and
     ;;; complete. Might want to consider some minimum number of runs as a
@@ -2163,10 +2151,6 @@
                          (inc iteration))))
               letter->count)))))
     
-    (def *sampling-frequency* 100)
-    
-    (def *ratio-to-n-of-minimum-iterations* 2)
-    
     ;;; Should we do some running average to establish stability? Also,
     ;;; should last-letter->count be from *sampling-frequency* iterations
     ;;; or one iteration ago?
@@ -2179,9 +2163,25 @@
            *delta-percentage-tolerance*)))
     
     (defn count-letters [dictionary]
-      (debug '*******************************************
-             (count (first dictionary))
-             (count dictionary))
+      (reduce
+       (fn [letter->count word]
+         (merge-with
+          +
+          letter->count
+          (zipmap word (replicate (count word) 1))))
+       {}
+       dictionary))
+    
+    (def *delta-percentage-tolerance* 1.0e-5)
+    
+    (def *sampling-frequency* 100)
+    
+    (def *ratio-to-n-of-minimum-iterations* 10)
+    
+    (defn count-letters [dictionary]
+      ;; (debug '*******************************************
+      ;;        (count (first dictionary))
+      ;;        (count dictionary))
       (let [minimum-iterations
             (/ (count dictionary) *ratio-to-n-of-minimum-iterations*)]
         (loop [last-letter->count {}
@@ -2283,44 +2283,129 @@
          [(/ (double (- (. System (nanoTime)) start#)) 1000000.0)
           ret#]))
     
-    (let [arity->dictionary (time (make-arity->dictionary "words.txt"))
-          ;; This is still expensive (3000 msecs vs. 4000 msecs for a
-          ;; trie).
-          arity->count (time (fmap count-letters arity->dictionary))
-          words [
-                 "comaker"
-                 "cumulative"
-                 "eruptive"
-                 "factual"
-                 "monadism"
-                 "mus"
-                 "nagging"
-                 "oses"
-                 "remembered"
-                 "spodumenes"
-                 "stereoisomers"
-                 "toxics"
-                 "trichromats"
-                 "triose"
-                 "uniformed"
-                 ;; "abas"
-                 ]]
-      (profile
-       (debug
-        arity->count
-        (zipmap
-         words
-         (map (fn [word]
-                (let [arity (count word)]
-                  (time-and-value
-                   (run (new HangmanGame word 4)
-                        (make-dictionary-strategy
-                         (arity->dictionary arity)
-                         (arity->count arity))))))
-              words))
-        )))
+    {"comaker" [269.192986 11],
+     "cumulative" [227.544676 6],
+     "eruptive" [73.002197 8],
+     "factual" [256.03295 25],
+     "monadism" [287.633228 8],
+     "mus" [27.553267 25],
+     "nagging" [264.223448 5],
+     "oses" [55.23997 4],
+     "remembered" [66.713347 6],
+     "spodumenes" [92.050017 6],
+     "stereoisomers" [49.081876 3],
+     "toxics" [194.52453 9],
+     "trichromats" [142.528282 4],
+     "triose" [83.375216 7],
+     "uniformed" [211.739498 9]}
     
-    ;;; every?, negative-predicate, merge-with; next, cons.
+    (def words
+      '("comaker"
+        "cumulative"
+        "eruptive"
+        "factual"
+        "monadism"
+        "mus"
+        "nagging"
+        "oses"
+        "remembered"
+        "spodumenes"
+        "stereoisomers"
+        "toxics"
+        "trichromats"
+        "triose"
+        "uniformed"))
+    
+    (def reference-scores
+      '(25 9 5 9 8 25 7 5 5 4 2 11 5 5 5))
+    
+    ;;; From the initial implementation.
+    (def naive-regex-scores
+      '(25 8 7 9 10 25 7 5 5 4 3 10 5 7 13))
+    
+    (def naive-regex-times
+      '(914.201401
+        624.136794
+        457.645472
+        1164.972
+        854.34475
+        98.380223
+        950.42491
+        132.590102
+        387.955044
+        403.945935
+        246.297455
+        548.420537
+        603.323457
+        276.769557
+        640.156031))
+    
+    (def deterministic-count-letter-scores
+      '(11 6 8 25 8 25 5 4 6 6 3 9 4 7 9))
+    
+    (def deterministic-count-letter-times
+      '(269.192986
+        227.544676
+        73.002197
+        256.03295
+        287.633228
+        27.553267
+        264.223448
+        55.23997
+        66.713347
+        92.050017
+        49.081876
+        194.52453
+        142.528282
+        83.375216
+        211.739498))
+    
+    (defn average-vals [data key]
+      (let [vals (map key (vals data))]
+        (float (/ (reduce + vals) (count vals)))))
+    
+    (debug
+     (let [arity->dictionary (make-arity->dictionary "words.txt")
+           arity->count (fmap count-letters arity->dictionary)]
+       (let [time-scores
+             (map #(time-and-value
+                    (let [arity (count %)]
+                      (run (new HangmanGame % 4)
+                           (make-dictionary-strategy
+                            (arity->dictionary arity)
+                            (arity->count arity)))))
+                  words)
+             data
+             (zipmap words (map (fn [initial-time
+                                     reference-score
+                                     [time score]]
+                                  (let [delta-time (- time initial-time)
+                                        delta-score (- score reference-score)]
+                                    (let [percent-change-time (/ delta-time initial-time)
+                                          percent-change-score (float (/ delta-score reference-score))]
+                                      {:time time
+                                       :delta-time delta-time
+                                       :percent-change-time percent-change-time
+                                       :score score
+                                       :delta-score delta-score
+                                       :percent-change-score percent-change-score})))
+                                deterministic-count-letter-times
+                                deterministic-count-letter-scores
+                                time-scores))
+             average-time (average-vals data :time)
+             average-score (average-vals data :score)
+             average-delta-time (average-vals data :delta-time)
+             average-delta-score (average-vals data :delta-score)
+             average-percent-change-time (average-vals data :percent-change-time)
+             average-percent-change-score (average-vals data :percent-change-score)]
+         {:data (into (sorted-map) data)
+          :average-time average-time
+          :average-delta-time average-delta-time
+          :average-percent-change-time average-percent-change-time
+          :average-score average-score
+          :average-delta-score average-delta-score
+          :average-percent-change-score average-percent-change-score})))
+    
   #+END_SRC
 ** TODO Probabilistic sampling for frequency?
    Can we get a probabilistic idea of what the frequencies are by
@@ -2623,37 +2708,42 @@
       (let [vals (map key (vals data))]
         (float (/ (reduce + vals) (count vals)))))
     
-    (profile
-     (pprint
-      (let [arity->dictionary (make-arity->dictionary "words.txt")]
-        (let [time-scores
-              (map #(time-and-value
-                     (run (new HangmanGame % 4)
-                          (make-regex-strategy
-                           (arity->dictionary (count %) '()))))
-                   words)
-              data
-              (zipmap words (map (fn [initial-time
-                                      reference-score
-                                      [time score]]
-                                   (let [delta-time (- time initial-time)
-                                         delta-score (- score reference-score)]
-                                     (let [percent-change-time (/ delta-time initial-time)
-                                           percent-change-score (float (/ delta-score reference-score))]
-                                       {:delta-time delta-time
-                                        :percent-change-time percent-change-time
-                                        :delta-score delta-score
-                                        :percent-change-score percent-change-score})))
-                                 initial-times reference-scores time-scores))
-              average-delta-time (average-vals data :delta-time)
-              average-delta-score (average-vals data :delta-score)
-              average-percent-change-time (average-vals data :percent-change-time)
-              average-percent-change-score (average-vals data :percent-change-score)]
-          {:data (into (sorted-map) data)
-           :average-delta-time average-delta-time
-           :average-percent-change-time average-percent-change-time
-           :average-delta-score average-delta-score
-           :average-percent-change-score average-percent-change-score}))))
+    (debug
+     (let [arity->dictionary (make-arity->dictionary "words.txt")]
+       (let [time-scores
+             (map #(time-and-value
+                    (run (new HangmanGame % 4)
+                         (make-regex-strategy
+                          (arity->dictionary (count %) '()))))
+                  words)
+             data
+             (zipmap words (map (fn [initial-time
+                                     reference-score
+                                     [time score]]
+                                  (let [delta-time (- time initial-time)
+                                        delta-score (- score reference-score)]
+                                    (let [percent-change-time (/ delta-time initial-time)
+                                          percent-change-score (float (/ delta-score reference-score))]
+                                      {:time time
+                                       :delta-time delta-time
+                                       :percent-change-time percent-change-time
+                                       :score score
+                                       :delta-score delta-score
+                                       :percent-change-score percent-change-score})))
+                                initial-times reference-scores time-scores))
+             average-time (average-vals data :time)
+             average-score (average-vals data :score)
+             average-delta-time (average-vals data :delta-time)
+             average-delta-score (average-vals data :delta-score)
+             average-percent-change-time (average-vals data :percent-change-time)
+             average-percent-change-score (average-vals data :percent-change-score)]
+         {:data (into (sorted-map) data)
+          :average-time average-time
+          :average-delta-time average-delta-time
+          :average-percent-change-time average-percent-change-time
+          :average-score average-score
+          :average-delta-score average-delta-score
+          :average-percent-change-score average-percent-change-score})))
     
   #+END_SRC
 
