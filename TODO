@@ -3,6 +3,10 @@
   Would like to have a table at the end that compares the scores of
   the regex, trie and string implementations against the reference
   times (as well as each other's); in addition to score.
+
+  Also, let's create some graphs; adding them, for instance, to the
+  TODO. (Just in case they gnuplot, etc. don't exist on the target
+  machine.)
 * TODO Frequency strategy
   It turns out that we're replicating frequency-based strategy again
   and again: the only difference is the storage mechanism for
@@ -2180,7 +2184,7 @@
     
     (def *sampling-frequency* 100)
     
-    (def *ratio-to-n-of-minimum-iterations* 10)
+    (def *ratio-to-n-of-minimum-iterations* 100)
     
     (defn count-letters [dictionary]
       ;; (debug '*******************************************
@@ -2192,20 +2196,24 @@
                letter->count {}
                dictionary (shuffle dictionary)
                iteration 0]
-          (if dictionary
-            (if (and (> iteration minimum-iterations)
-                     (zero? (mod iteration *sampling-frequency*))
-                     (sufficiently-stable? last-letter->count letter->count))
-              letter->count
-              (let [word (first dictionary)]
-                (recur letter->count
-                       (merge-with
-                        +
-                        letter->count
-                        (zipmap word (replicate (count word) 1)))
-                       (next dictionary)
-                       (inc iteration))))
-            letter->count))))
+          (let [aligned? (zero? (mod iteration *sampling-frequency*))]
+            (if dictionary
+              (if (and (> iteration minimum-iterations)
+                       aligned?
+                       ;; (zero? (mod iteration *sampling-frequency*))
+                       (sufficiently-stable? last-letter->count letter->count))
+                letter->count
+                (let [word (first dictionary)]
+                  (recur (if aligned?
+                           letter->count
+                           last-letter->count)
+                         (merge-with
+                          +
+                          letter->count
+                          (zipmap word (replicate (count word) 1)))
+                         (next dictionary)
+                         (inc iteration))))
+              letter->count)))))
     
     ;;; Let's merge with minus when we prune.
     (defn make-dictionary-strategy [dictionary letter->count]
@@ -2237,17 +2245,14 @@
                      ;; (debug new-dictionary new-letter->count)
                      (prof :filter-dictionary (reset! dictionary (filter-dictionary predicates @dictionary)))
                      (prof :count-letters (reset! letter->count (count-letters @dictionary)))
-                     ;; (debug letter->count)
-                     ;; (reset! dictionary new-dictionary)
-                     ;; (reset! letter->count new-letter->count)
-                     ;; (debug (into (sorted-map-by >) (map-invert (letter->count-->char->count @letter->count))))
                      ;; Weird that we have to do this filtering in the
                      ;; first place, given that we've just pruned the
                      ;; dictionary!
                      ;;
-                     ;; Let's discern whether that's actually the case.
+                     ;; Let's discern whether that's actually the
+                     ;; case. (This appears to be the case.)
                      ;;
-                     ;; Also, don't we want to check for words after
+                     ;; TODO: Also, don't we want to check for words after
                      ;; pruning?
                      (let [guessed-letters
                            ;; Also, #(-> % Character/toLowerCase
@@ -2394,7 +2399,8 @@
                                        :delta-score delta-score
                                        :percent-change-score percent-change-score})))
                                 deterministic-count-letter-times
-                                deterministic-count-letter-scores
+                                ;; deterministic-count-letter-scores
+                                reference-scores
                                 time-scores))
              average-time (average-vals data :time)
              average-score (average-vals data :score)
