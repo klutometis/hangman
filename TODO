@@ -2186,6 +2186,10 @@
     
     (def *ratio-to-n-of-minimum-iterations* 100)
     
+    ;;; Checking for alignment and propagating last-letter->count
+    ;;; accordingly is expensive; is it worth it? I.e. does it allow us to
+    ;;; calculate stability better? It would probably delay stability,
+    ;;; wouldn't it? Which might be advantageous.
     (defn count-letters [dictionary]
       ;; (debug '*******************************************
       ;;        (count (first dictionary))
@@ -2214,6 +2218,32 @@
                          (next dictionary)
                          (inc iteration))))
               letter->count)))))
+    
+    (defn count-letters [dictionary]
+      ;; (debug '*******************************************
+      ;;        (count (first dictionary))
+      ;;        (count dictionary))
+      (let [minimum-iterations
+            (/ (count dictionary) *ratio-to-n-of-minimum-iterations*)]
+        (loop [last-letter->count {}
+               letter->count {}
+               dictionary (shuffle dictionary)
+               iteration 0]
+          (if dictionary
+            (if (and (> iteration minimum-iterations)
+                     (zero? (mod iteration *sampling-frequency*))
+                     ;; (zero? (mod iteration *sampling-frequency*))
+                     (sufficiently-stable? last-letter->count letter->count))
+              letter->count
+              (let [word (first dictionary)]
+                (recur letter->count
+                       (merge-with
+                        +
+                        letter->count
+                        (zipmap word (replicate (count word) 1)))
+                       (next dictionary)
+                       (inc iteration))))
+            letter->count))))
     
     ;;; Let's merge with minus when we prune.
     (defn make-dictionary-strategy [dictionary letter->count]
