@@ -13,6 +13,10 @@
   best score.
 
   This should be overviewable, too.
+
+  The performance numbers I've transcribed for testing are meaningless
+  on other machines; that's why we have to measure relative
+  performance.
 * TODO Frequency strategy
   It turns out that we're replicating frequency-based strategy again
   and again: the only difference is the storage mechanism for
@@ -1980,8 +1984,7 @@
 
   #+BEGIN_SRC clojure
     (use
-     'clojure.contrib.profile
-     'hangman.core
+     '[hangman.core :only (run debug)]
      '[clojure.contrib.generic.functor :only (fmap)]
      '[clojure.contrib.math :only (abs)]
      '[clojure.set :only (map-invert)]
@@ -2034,11 +2037,6 @@
                (positive-predicate (char->letter char))))
            string))
     
-    ;;; This is significantly slower, for some reason: destructuring?
-    (defn every-predicate? [predicates word]
-      (every? (fn [[predicate letter]] (predicate letter))
-              (zipmap predicates word)))
-    
     (defn every-predicate? [predicates word]
       (every? true?
               (map (fn [letter predicate] (predicate letter))
@@ -2047,63 +2045,6 @@
     
     (defn filter-dictionary [predicates dictionary]
       (filter (partial every-predicate? predicates) dictionary))
-    
-    (defn filter-dictionary-and-deduct-letter-count [predicates dictionary letter-count]
-      (let [letter-count (atom letter-count)
-            dictionary
-            (filter (fn [word]
-                      (let [predicated? (every-predicate? predicates word)]
-                        (if (not predicated?)
-                          (swap! letter-count
-                                 (fn [letter-count]
-                                   (merge-with
-                                    -
-                                    letter-count
-                                    (zipmap word (replicate (count word) 1))))))
-                        predicated?))
-                    dictionary)]
-        {:letter-count @letter-count
-         :dictionary dictionary}))
-    
-    (defn filter-dictionary-and-deduct-letter-count [predicates dictionary letter->count]
-      (let [letter->count (atom letter->count)
-            dictionary
-            (filter (fn [word]
-                      (let [predicated? (every-predicate? predicates word)]
-                        (if (not predicated?)
-                          (reset! letter->count
-                                  (merge-with
-                                   -
-                                   @letter->count
-                                   (zipmap word (replicate (count word) 1)))))
-                        predicated?))
-                    dictionary)]
-        {:letter->count letter->count
-         :dictionary dictionary}))
-    
-    ;;; We're forcing the seq here; we should investigate the time
-    ;;; tradeoff of lazy access.
-    ;;;
-    ;;; Even deduction is expensive, furthermore; if we could do a
-    ;;; straight filter and probabilistic counts, we might be better off.
-    (defn filter-dictionary-and-deduct-letter-count [predicates dictionary letter->count]
-      (let [letter->count (transient letter->count)
-            dictionary
-            (doall
-             (filter (fn [word]
-                       (let [predicated? (every-predicate? predicates word)]
-                         (if (not predicated?)
-                           (doseq
-                               [letter
-                                ;; Distinct is still really expensive
-                                ;; (letter->count is distinct, though,
-                                ;; isn't it)?
-                                (distinct word)]
-                             (assoc! letter->count letter (dec (letter->count letter 1)))))
-                         predicated?))
-                     dictionary))]
-        {:dictionary dictionary
-         :letter->count (persistent! letter->count)}))
     
     (defn make-arity->dictionary [file]
       (with-open [input (reader file)]
@@ -2127,45 +2068,11 @@
       (let [total (apply + (vals letter->count))]
         (fmap #(float (/ % total)) letter->count)))
     
-    ;;; We have to try to make sure the map is tolerably stable and
-    ;;; complete. Might want to consider some minimum number of runs as a
-    ;;; function, say, of dictionary size.
-    (defn count-letters [dictionary]
-      (debug '*******************************************
-             (count (first dictionary))
-             (count dictionary))
-      (let [minimum-iterations (/ (count dictionary) *ratio-to-n-of-minimum-iterations*)]
-        (loop [last-letter->percentage {}
-               letter->count {}
-               dictionary (shuffle dictionary)
-               iteration 0]
-          (let [letter->percentage (letter->count-->letter->percentage letter->count)
-                delta-letter->percentage
-                (merge-with - letter->percentage last-letter->percentage)
-                sufficiently-stable?
-                (and (= (count last-letter->percentage)
-                        (count letter->count))
-                     (not (empty? letter->count))
-                     (< (apply + (vals delta-letter->percentage))
-                        *delta-percentage-tolerance*)
-                     (> iteration minimum-iterations))]
-            ;; (debug (< (apply + (vals delta-letter->percentage))
-            ;;           *delta-percentage-tolerance*)
-            ;;        (= (count last-letter->percentage)
-            ;;           (count letter->count)))
-            ;; (debug sufficiently-stable?)
-            (if dictionary
-              (if sufficiently-stable?
-                letter->count
-                (let [word (first dictionary)]
-                  (recur letter->percentage
-                         (merge-with
-                          +
-                          letter->count
-                          (zipmap word (replicate (count word) 1)))
-                         (next dictionary)
-                         (inc iteration))))
-              letter->count)))))
+    (def *delta-percentage-tolerance* 1.0e-5)
+    
+    (def *sampling-frequency* 100)
+    
+    (def *ratio-to-n-of-minimum-iterations* 100)
     
     ;;; Should we do some running average to establish stability? Also,
     ;;; should last-letter->count be from *sampling-frequency* iterations
@@ -2179,58 +2086,6 @@
            *delta-percentage-tolerance*)))
     
     (defn count-letters [dictionary]
-      (reduce
-       (fn [letter->count word]
-         (merge-with
-          +
-          letter->count
-          (zipmap word (replicate (count word) 1))))
-       {}
-       dictionary))
-    
-    (def *delta-percentage-tolerance* 1.0e-5)
-    
-    (def *sampling-frequency* 100)
-    
-    (def *ratio-to-n-of-minimum-iterations* 100)
-    
-    ;;; Checking for alignment and propagating last-letter->count
-    ;;; accordingly is expensive; is it worth it? I.e. does it allow us to
-    ;;; calculate stability better? It would probably delay stability,
-    ;;; wouldn't it? Which might be advantageous.
-    (defn count-letters [dictionary]
-      ;; (debug '*******************************************
-      ;;        (count (first dictionary))
-      ;;        (count dictionary))
-      (let [minimum-iterations
-            (/ (count dictionary) *ratio-to-n-of-minimum-iterations*)]
-        (loop [last-letter->count {}
-               letter->count {}
-               dictionary (shuffle dictionary)
-               iteration 0]
-          (let [aligned? (zero? (mod iteration *sampling-frequency*))]
-            (if dictionary
-              (if (and (> iteration minimum-iterations)
-                       aligned?
-                       ;; (zero? (mod iteration *sampling-frequency*))
-                       (sufficiently-stable? last-letter->count letter->count))
-                letter->count
-                (let [word (first dictionary)]
-                  (recur (if aligned?
-                           letter->count
-                           last-letter->count)
-                         (merge-with
-                          +
-                          letter->count
-                          (zipmap word (replicate (count word) 1)))
-                         (next dictionary)
-                         (inc iteration))))
-              letter->count)))))
-    
-    (defn count-letters [dictionary]
-      ;; (debug '*******************************************
-      ;;        (count (first dictionary))
-      ;;        (count dictionary))
       (let [minimum-iterations
             (/ (count dictionary) *ratio-to-n-of-minimum-iterations*)]
         (loop [last-letter->count {}
@@ -2240,7 +2095,6 @@
           (if dictionary
             (if (and (> iteration minimum-iterations)
                      (zero? (mod iteration *sampling-frequency*))
-                     ;; (zero? (mod iteration *sampling-frequency*))
                      (sufficiently-stable? last-letter->count letter->count))
               letter->count
               (let [word (first dictionary)]
@@ -2253,72 +2107,9 @@
                        (inc iteration))))
             letter->count))))
     
-    ;;; Let's merge with minus when we prune.
     (defn make-dictionary-strategy [dictionary letter->count]
-      (let [dictionary (atom dictionary)
-            letter->count (atom letter->count)
-            last-guess (atom nil)]
-        (reify
-          GuessingStrategy
-          (nextGuess [_ game]
-            ;; (debug @dictionary @letter->count @last-guess)
-            (prof
-             :nextGuess
-             (let [remaining-guesses (.numWrongGuessesRemaining game)
-                   n-words (count @dictionary)]
-               (if (and (pos? n-words)
-                        (<= n-words remaining-guesses))
-                 (let [word (nth @dictionary (rand-int n-words))]
-                   (debug 'GuessWord (word->string word))
-                   (reset! dictionary (remove #(= % word) @dictionary))
-                   (new GuessWord (word->string word)))
-                 (if @last-guess
-                   (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
-                         predicates (string->predicates guessed-so-far (negative-predicate @last-guess))
-                         ;; [{new-dictionary :dictionary
-                         ;;  new-letter->count :letter->count}]
-                         ;; (prof :filter-dictionary-and-deduct-letter-count
-                         ;;       (filter-dictionary-and-deduct-letter-count predicates @dictionary @letter->count))
-                         ]
-                     ;; (debug new-dictionary new-letter->count)
-                     (prof :filter-dictionary (reset! dictionary (filter-dictionary predicates @dictionary)))
-                     (prof :count-letters (reset! letter->count (count-letters @dictionary)))
-                     ;; Weird that we have to do this filtering in the
-                     ;; first place, given that we've just pruned the
-                     ;; dictionary!
-                     ;;
-                     ;; Let's discern whether that's actually the
-                     ;; case. (This appears to be the case.)
-                     ;;
-                     ;; TODO: Also, don't we want to check for words after
-                     ;; pruning?
-                     (let [guessed-letters
-                           ;; Also, #(-> % Character/toLowerCase
-                           ;; char->letter); `->' is like a
-                           ;; forward-chaining `comp', I guess. Something
-                           ;; about placement, though, vs. `->>'.
-                           (map (fn [char] (char->letter (Character/toLowerCase char)))
-                                (.getAllGuessedLetters game))
-                           ;; Devaluate letters already-guessed.
-                           letter->count
-                           (merge @letter->count
-                                  (zipmap guessed-letters (replicate (count guessed-letters) 0)))
-                           count->letter
-                           (into (sorted-map-by >) (map-invert letter->count))
-                           next-guess (count->letter (apply max (keys count->letter)))]
-                       (reset! last-guess next-guess)
-                       (debug 'GuessLetter (letter->char next-guess))
-                       (new GuessLetter (letter->char next-guess))))
-                   (let [count->letter
-                         (into (sorted-map-by >) (map-invert @letter->count))
-                         next-guess (count->letter (apply max (keys count->letter)))]
-                     (reset! last-guess next-guess)
-                     ;; (debug (letter->count-->char->count @letter->count))
-                     (debug 'GuessLetter (letter->char next-guess))
-                     (new GuessLetter (letter->char next-guess)))))
-               ))))))
-    
-    (defn make-dictionary-strategy [dictionary letter->count]
+      ;; We're forced to keep mutable state because GuessingStrategy
+      ;; doesn't allow for the propagation of state.
       (let [dictionary (atom dictionary)
             letter->count (atom letter->count)
             last-guess (atom nil)]
@@ -2336,15 +2127,10 @@
                 (if (and (pos? n-words)
                          (<= n-words remaining-guesses))
                   (let [word (nth @dictionary (rand-int n-words))]
-                    (debug 'GuessWord (word->string word))
                     (reset! dictionary (remove #(= % word) @dictionary))
                     (reset! last-guess nil)
                     (new GuessWord (word->string word)))
                   (let [guessed-letters
-                        ;; Also, #(-> % Character/toLowerCase
-                        ;; char->letter); `->' is like a
-                        ;; forward-chaining `comp', I guess. Something
-                        ;; about placement, though, vs. `->>'.
                         (map #(-> % Character/toLowerCase char->letter)
                              (.getAllGuessedLetters game))
                         ;; Devaluate letters already-guessed.
@@ -2353,16 +2139,10 @@
                                (zipmap guessed-letters (replicate (count guessed-letters) 0)))
                         count->letter
                         (into (sorted-map-by >) (map-invert letter->count))
-                        next-guess (count->letter (apply max (keys count->letter)))]
+                        next-guess
+                        (count->letter (apply max (keys count->letter)))]
                     (reset! last-guess next-guess)
-                    (debug 'GuessLetter (letter->char next-guess))
                     (new GuessLetter (letter->char next-guess))))))))))
-    
-    #_ (let [word1 '(1 2 3 4 5)
-          word2 '(1 2 3 7 8)
-          word3 '(9 2 3 7 8)
-          dictionary [word1 word2 word3]]
-      (debug (count-letters dictionary)))
     
     (defmacro time-and-value [expr]
       `(let [start# (. System (nanoTime))
@@ -2461,7 +2241,6 @@
                                        :delta-score delta-score
                                        :percent-change-score percent-change-score})))
                                 deterministic-count-letter-times
-                                ;; deterministic-count-letter-scores
                                 reference-scores
                                 time-scores))
              average-time (average-vals data :time)
