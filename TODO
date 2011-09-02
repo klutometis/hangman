@@ -2,14 +2,15 @@
 * TODO Test package
   #+BEGIN_SRC clojure
     (use 'hangman.core
+         'hangman.frequency-strategy
          'hangman.regex-strategy
          '[clojure.pprint :only (pprint)]
          '[clojure.contrib.generic.functor :only (fmap)]
          '[clojure.contrib.io :only (reader)])
     
-    (let [arity->dictionary (make-arity->dictionary "words.txt")
+    (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
           arity->letter->count (fmap sampling-count-letters arity->dictionary)
-          words (line-seq (reader "words.txt"))]
+          words (line-seq (reader "words-head.txt"))]
       (pprint
        (run-words make-sampling-regex-strategy
                   arity->dictionary
@@ -17,7 +18,9 @@
                   words)))
     
   #+END_SRC
-  Sampling on entire dictionary:
+
+  Sampling vs. deterministic on entire dictionary (constant overhead
+  large enough in sampling to slow it down, apparently):
 
   #+BEGIN_SRC clojure
     {:average-time 22.390905,
@@ -29,9 +32,13 @@
      :average-score 7.3121324}
   #+END_SRC
 
+  According to Aaron: no amnesty for Clojure.
+
 * TODO Main
   `--deterministic' vs. `--sampling'; we just want average scores and
-  times, since we don't have anything to compare it with.
+  times, since we don't have anything to compare it with. Why not
+  `--trie' and `--predicate'? Also: `--whole-dictionary'; not to
+  mention: `--verbose' (may affect running time).
 * TODO Rationale
   I went through three implementations before I found one with
   acceptable performance characteristics: regular-expression based,
