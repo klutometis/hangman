@@ -1,4 +1,7 @@
 # -*- org -*-
+* TODO Main
+  `--deterministic' vs. `--sampling'; we just want average scores and
+  times, since we don't have anything to compare it with.
 * TODO Rationale
   I went through three implementations before I found one with
   acceptable performance characteristics: regular-expression based,
@@ -2785,15 +2788,15 @@
         (< (apply + (vals delta-letter->percentage))
            *delta-percentage-tolerance*)))
     
-    (defn letter->frequency [words]
-      (loop [words words
+    (defn deterministic-count-letters [dictionary]
+      (loop [dictionary dictionary
              letter->frequency (hash-map)]
-        (if words
-          (let [word (first words)
+        (if dictionary
+          (let [word (first dictionary)
                 ;; `distinct' was here.
                 letters word]
             ;; Also think about zipmap here.
-            (recur (next words)
+            (recur (next dictionary)
                    (reduce (fn [letter->frequency letter]
                              (assoc letter->frequency
                                letter
@@ -2802,7 +2805,7 @@
                            letters)))
           letter->frequency)))
     
-    (defn count-letters [dictionary]
+    (defn sampling-count-letters [dictionary]
       (let [minimum-iterations
             (/ (count dictionary) *ratio-to-n-of-minimum-iterations*)]
         (loop [last-letter->count {}
@@ -2827,7 +2830,7 @@
     (defn negative-regex [last-guess]
       (format "[^%s]" last-guess))
     
-    (defn make-regex-strategy
+    (defn make-deterministic-regex-strategy
       [initial-dictionary initial-letter->count]
       (make-frequency-strategy
        (fn [dictionary guessed-so-far last-guess]
@@ -2835,7 +2838,24 @@
                filtering-regex (format "^%s$" (replace-str "-" negative-regex guessed-so-far))
                filtering-pattern (re-pattern filtering-regex)]
            (filter #(re-seq filtering-pattern %) dictionary)))
-       ;; letter->frequency
+       letter->frequency
+       (fn [word dictionary]
+         (remove #(= % word) dictionary))
+       identity
+       identity
+       identity
+       identity
+       initial-dictionary
+       initial-letter->count))
+    
+    (defn make-sampling-regex-strategy
+      [initial-dictionary initial-letter->count]
+      (make-frequency-strategy
+       (fn [dictionary guessed-so-far last-guess]
+         (let [negative-regex (negative-regex last-guess)
+               filtering-regex (format "^%s$" (replace-str "-" negative-regex guessed-so-far))
+               filtering-pattern (re-pattern filtering-regex)]
+           (filter #(re-seq filtering-pattern %) dictionary)))
        count-letters
        (fn [word dictionary]
          (remove #(= % word) dictionary))
@@ -2905,7 +2925,7 @@
              (map #(time-and-value
                     (let [arity (count %)]
                       (run (new HangmanGame % 4)
-                           (make-regex-strategy
+                           (make-sampling-regex-strategy
                             (arity->dictionary arity)
                             (arity->count arity)))))
                   words)
