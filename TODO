@@ -2387,8 +2387,9 @@
                    word
                    predicates)))
     
-    (defn filter-dictionary [predicates dictionary]
-      (filter (partial every-predicate? predicates) dictionary))
+    (defn filter-dictionary [dictionary guessed-so-far last-guess]
+      (let [predicates (string->predicates guessed-so-far (negative-predicate last-guess))]
+        (filter (partial every-predicate? predicates) dictionary)))
     
     (defn make-arity->dictionary [file]
       (with-open [input (reader file)]
@@ -2451,42 +2452,20 @@
                        (inc iteration))))
             letter->count))))
     
-    (defn make-sampling-strategy [dictionary letter->count]
-      ;; We're forced to keep mutable state because GuessingStrategy
-      ;; doesn't allow for the propagation of state.
-      (let [dictionary (atom dictionary)
-            letter->count (atom letter->count)
-            last-guess (atom nil)]
-        (reify
-          GuessingStrategy
-          (nextGuess [_ game]
-            (do
-              (if @last-guess
-                (let [guessed-so-far (.toLowerCase (.getGuessedSoFar game))
-                      predicates (string->predicates guessed-so-far (negative-predicate @last-guess))]
-                  (reset! dictionary (filter-dictionary predicates @dictionary))
-                  (reset! letter->count (count-letters @dictionary))))
-              (let [remaining-guesses (.numWrongGuessesRemaining game)
-                    n-words (count @dictionary)]
-                (if (and (pos? n-words)
-                         (<= n-words remaining-guesses))
-                  (let [word (nth @dictionary (rand-int n-words))]
-                    (reset! dictionary (remove #(= % word) @dictionary))
-                    (reset! last-guess nil)
-                    (new GuessWord (word->string word)))
-                  (let [guessed-letters
-                        (map #(-> % Character/toLowerCase char->letter)
-                             (.getAllGuessedLetters game))
-                        ;; Devaluate letters already-guessed.
-                        letter->count
-                        (merge @letter->count
-                               (zipmap guessed-letters (replicate (count guessed-letters) 0)))
-                        count->letter
-                        (into (sorted-map-by >) (map-invert letter->count))
-                        next-guess
-                        (count->letter (apply max (keys count->letter)))]
-                    (reset! last-guess next-guess)
-                    (new GuessLetter (letter->char next-guess))))))))))
+    (defn remove-word [word dictionary]
+      (remove #(= % word) dictionary))
+    
+    (defn make-sampling-strategy [initial-dictionary initial-letter->count]
+      (make-frequency-strategy
+       filter-dictionary
+       count-letters
+       remove-word
+       char->letter
+       letter->char
+       word->string
+       identity
+       initial-dictionary
+       initial-letter->count))
     
     (defmacro time-and-value [expr]
       `(let [start# (. System (nanoTime))
