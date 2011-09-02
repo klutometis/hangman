@@ -41,7 +41,7 @@
           arity->dictionary)))))
 
 (defn make-sampling-predicate-strategy
-  [initial-dictionary initial-letter->count]
+  [initial-dictionary initial-letter->count & rest]
   (make-frequency-strategy
    filter-predicate-dictionary
    sampling-count-letters

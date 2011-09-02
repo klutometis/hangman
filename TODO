@@ -30,6 +30,16 @@
                   (constantly nil)
                   words)))
     
+    (let [arity->dictionary (make-arity->predicate-dictionary "words-head.txt")
+          arity->letter->count (fmap sampling-count-letters arity->dictionary)
+          words (line-seq (reader "words-head.txt"))]
+      (pprint
+       (run-words make-sampling-predicate-strategy
+                  arity->dictionary
+                  arity->letter->count
+                  (constantly nil)
+                  words)))
+    
     #_ (let [arity->dictionary (make-arity->trie-dictionary "words-head.txt")
           arity->letter->count (fmap count-trie arity->dictionary)
           words (line-seq (reader "words-head.txt"))]
