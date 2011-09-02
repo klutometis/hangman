@@ -1,4 +1,22 @@
 # -*- org -*-
+* TODO Test package
+  #+BEGIN_SRC clojure
+    (use 'hangman.core
+         'hangman.regex-strategy
+         '[clojure.pprint :only (pprint)]
+         '[clojure.contrib.generic.functor :only (fmap)]
+         '[clojure.contrib.io :only (reader)])
+    
+    (let [arity->dictionary (make-arity->dictionary "words.txt")
+          arity->letter->count (fmap sampling-count-letters arity->dictionary)
+          words (line-seq (reader "words.txt"))]
+      (pprint
+       (run-words make-sampling-regex-strategy
+                  arity->dictionary
+                  arity->letter->count
+                  words)))
+    
+  #+END_SRC
 * TODO Main
   `--deterministic' vs. `--sampling'; we just want average scores and
   times, since we don't have anything to compare it with.
