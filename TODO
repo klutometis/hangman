@@ -2830,41 +2830,41 @@
     (defn negative-regex [last-guess]
       (format "[^%s]" last-guess))
     
-    (defn make-deterministic-regex-strategy
-      [initial-dictionary initial-letter->count]
+    (defn filter-dictionary [dictionary guessed-so-far last-guess]
+      (let [negative-regex (negative-regex last-guess)
+            filtering-regex (format "^%s$" (replace-str "-" negative-regex guessed-so-far))
+            filtering-pattern (re-pattern filtering-regex)]
+        (filter #(re-seq filtering-pattern %) dictionary)))
+    
+    (def char->letter identity)
+    
+    (def letter->char identity)
+    
+    (def word->string identity)
+    
+    (def get-words identity)
+    
+    (defn remove-word [word dictionary]
+      (remove #(= % word) dictionary))
+    
+    (defn make-regex-strategy
+      [count-letters initial-dictionary initial-letter->count]
       (make-frequency-strategy
-       (fn [dictionary guessed-so-far last-guess]
-         (let [negative-regex (negative-regex last-guess)
-               filtering-regex (format "^%s$" (replace-str "-" negative-regex guessed-so-far))
-               filtering-pattern (re-pattern filtering-regex)]
-           (filter #(re-seq filtering-pattern %) dictionary)))
-       letter->frequency
-       (fn [word dictionary]
-         (remove #(= % word) dictionary))
-       identity
-       identity
-       identity
-       identity
+       filter-dictionary
+       count-letters
+       remove-word
+       char->letter
+       letter->char
+       word->string
+       get-words
        initial-dictionary
        initial-letter->count))
     
-    (defn make-sampling-regex-strategy
-      [initial-dictionary initial-letter->count]
-      (make-frequency-strategy
-       (fn [dictionary guessed-so-far last-guess]
-         (let [negative-regex (negative-regex last-guess)
-               filtering-regex (format "^%s$" (replace-str "-" negative-regex guessed-so-far))
-               filtering-pattern (re-pattern filtering-regex)]
-           (filter #(re-seq filtering-pattern %) dictionary)))
-       count-letters
-       (fn [word dictionary]
-         (remove #(= % word) dictionary))
-       identity
-       identity
-       identity
-       identity
-       initial-dictionary
-       initial-letter->count))
+    (def make-deterministic-regex-strategy
+      (partial make-regex-strategy deterministic-count-letters))
+    
+    (def make-sampling-regex-strategy
+      (partial make-regex-strategy sampling-count-letters))
     
     ;;; Modify this to return time and value!
     (defmacro time-and-value [expr]
