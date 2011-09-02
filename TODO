@@ -2768,6 +2768,23 @@
       (let [letter (+ (rand-int 26) 97)]
         (char letter)))
     
+    (def *delta-percentage-tolerance* 1.0e-5)
+    
+    (def *sampling-frequency* 100)
+    
+    (def *ratio-to-n-of-minimum-iterations* 100)
+    
+    ;;; Should we do some running average to establish stability? Also,
+    ;;; should last-letter->count be from *sampling-frequency* iterations
+    ;;; or one iteration ago?
+    (defn sufficiently-stable? [last-letter->count letter->count]
+      (let [last-letter->percentage (letter->count-->letter->percentage last-letter->count)
+            letter->percentage (letter->count-->letter->percentage letter->count)
+            delta-letter->percentage
+            (merge-with - letter->percentage last-letter->percentage)]
+        (< (apply + (vals delta-letter->percentage))
+           *delta-percentage-tolerance*)))
+    
     (defn letter->frequency [words]
       (loop [words words
              letter->frequency (hash-map)]
@@ -2785,6 +2802,28 @@
                            letters)))
           letter->frequency)))
     
+    (defn count-letters [dictionary]
+      (let [minimum-iterations
+            (/ (count dictionary) *ratio-to-n-of-minimum-iterations*)]
+        (loop [last-letter->count {}
+               letter->count {}
+               dictionary (shuffle dictionary)
+               iteration 0]
+          (if dictionary
+            (if (and (> iteration minimum-iterations)
+                     (zero? (mod iteration *sampling-frequency*))
+                     (sufficiently-stable? last-letter->count letter->count))
+              letter->count
+              (let [word (first dictionary)]
+                (recur letter->count
+                       (merge-with
+                        +
+                        letter->count
+                        (zipmap word (replicate (count word) 1)))
+                       (next dictionary)
+                       (inc iteration))))
+            letter->count))))
+    
     (defn negative-regex [last-guess]
       (format "[^%s]" last-guess))
     
@@ -2796,7 +2835,8 @@
                filtering-regex (format "^%s$" (replace-str "-" negative-regex guessed-so-far))
                filtering-pattern (re-pattern filtering-regex)]
            (filter #(re-seq filtering-pattern %) dictionary)))
-       letter->frequency
+       ;; letter->frequency
+       count-letters
        (fn [word dictionary]
          (remove #(= % word) dictionary))
        identity
