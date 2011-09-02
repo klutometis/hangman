@@ -17,6 +17,18 @@
                   words)))
     
   #+END_SRC
+  Sampling on entire dictionary:
+
+  #+BEGIN_SRC clojure
+    {:average-time 22.390905,
+     :average-score 7.340243}
+  #+END_SRC
+
+  #+BEGIN_SRC clojure
+    {:average-time 17.91233,
+     :average-score 7.3121324}
+  #+END_SRC
+
 * TODO Main
   `--deterministic' vs. `--sampling'; we just want average scores and
   times, since we don't have anything to compare it with.

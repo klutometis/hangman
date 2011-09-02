@@ -32,7 +32,7 @@
   ;; assertCanKeepGuessing (in guessLetter and guessWord) will
   ;; throw an exception.
   (while (can-keep-guessing? game)
-    (println game)
+    ;; (println game)
     (let [guess (.nextGuess strategy game)]
       (.makeGuess guess game)))
      (println game)
