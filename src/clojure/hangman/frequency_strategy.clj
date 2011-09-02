@@ -1,18 +1,13 @@
 (ns hangman.frequency-strategy
-  (:import (com.factual.hangman
-            GuessingStrategy
-            GuessLetter
-            GuessWord
-            HangmanGame
-            HangmanGame$Status)
-           java.lang.Character)
   (:use [clojure.contrib.io :only (reader)]
-        [clojure.set :only (difference map-invert)]
-        [clojure.string :only (join)]
-        [clojure.contrib.math :only (abs)]
-        [clojure.pprint :only (pprint)]
         [clojure.contrib.generic.functor :only (fmap)]
-        [hangman.core :only (debug)]))
+        [clojure.string :only (join)]
+        [clojure.set :only (difference map-invert)])
+  (:import (com.factual.hangman
+            HangmanGame
+            GuessingStrategy
+            GuessWord
+            GuessLetter)))
 
 (defn letter->count-->letter->percentage [letter->count]
   (let [total (apply + (vals letter->count))]

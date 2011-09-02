@@ -10,7 +10,7 @@
          '[clojure.contrib.generic.functor :only (fmap)]
          '[clojure.contrib.io :only (reader)])
     
-    #_ (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
+    (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
           arity->letter->count (fmap deterministic-count-letters arity->dictionary)
           words (line-seq (reader "words-head.txt"))]
       (pprint
@@ -20,7 +20,7 @@
                   (constantly nil)
                   words)))
     
-    #_ (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
+    (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
           arity->letter->count (fmap sampling-count-letters arity->dictionary)
           words (line-seq (reader "words-head.txt"))]
       (pprint
@@ -40,7 +40,7 @@
                   (constantly nil)
                   words)))
     
-    #_ (let [arity->dictionary (make-arity->trie-dictionary "words-head.txt")
+    (let [arity->dictionary (make-arity->trie-dictionary "words-head.txt")
           arity->letter->count (fmap count-trie arity->dictionary)
           words (line-seq (reader "words-head.txt"))]
       (pprint
