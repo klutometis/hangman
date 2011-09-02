@@ -1,33 +1,18 @@
 (ns hangman.predicate-strategy
   (:use
-   [clojure.contrib.generic.functor :only (fmap)]
-   [clojure.contrib.math :only (abs)]
-   [clojure.set :only (map-invert)]
    [clojure.contrib.io :only (reader)]
-   [clojure.pprint :only (pprint)])
-  (:import (com.factual.hangman
-            GuessingStrategy
-            GuessLetter
-            GuessWord
-            HangmanGame)
-           java.lang.Character))
+   [hangman.frequency-strategy
+    :only (letter->char
+           char->letter
+           string->word
+           word->string
+           make-frequency-strategy
+           sampling-count-letters
+           remove-word
+           string->predicates
+           negative-predicate)]))
 
-(def- wildcard-predicate (constantly true))
-
-(defn- positive-predicate [predicans]
-  (fn [predicandum] (= predicans predicandum)))
-
-(defn- negative-predicate [predicans]
-  (fn [predicandum] (not (= predicans predicandum))))
-
-(defn- string->predicates [string default-predicate]
-  (map (fn [char]
-         (if (= char HangmanGame/MYSTERY_LETTER)
-           default-predicate
-           (positive-predicate (char->letter char))))
-       string))
-
-(defn- every-predicate? [predicates word]
+(defn every-predicate? [predicates word]
   (every? true?
           (map (fn [letter predicate] (predicate letter))
                word

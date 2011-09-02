@@ -3,18 +3,41 @@
   #+BEGIN_SRC clojure
     (use 'hangman.core
          'hangman.frequency-strategy
+         'hangman.predicate-strategy
          'hangman.regex-strategy
+         'hangman.trie-strategy
          '[clojure.pprint :only (pprint)]
          '[clojure.contrib.generic.functor :only (fmap)]
          '[clojure.contrib.io :only (reader)])
     
-    (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
+    #_ (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
+          arity->letter->count (fmap deterministic-count-letters arity->dictionary)
+          words (line-seq (reader "words-head.txt"))]
+      (pprint
+       (run-words make-deterministic-regex-strategy
+                  arity->dictionary
+                  arity->letter->count
+                  (constantly nil)
+                  words)))
+    
+    #_ (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
           arity->letter->count (fmap sampling-count-letters arity->dictionary)
           words (line-seq (reader "words-head.txt"))]
       (pprint
        (run-words make-sampling-regex-strategy
                   arity->dictionary
                   arity->letter->count
+                  (constantly nil)
+                  words)))
+    
+    #_ (let [arity->dictionary (make-arity->trie-dictionary "words-head.txt")
+          arity->letter->count (fmap count-trie arity->dictionary)
+          words (line-seq (reader "words-head.txt"))]
+      (pprint
+       (run-words make-trie-strategy
+                  arity->dictionary
+                  arity->letter->count
+                  identity
                   words)))
     
   #+END_SRC
@@ -34,11 +57,17 @@
 
   According to Aaron: no amnesty for Clojure.
 
+  The strategies shouldn't have to deal with reading the file to
+  create dictionaries: they should just be reductions over words.
+
+  Non-mutually-exclusive algorithms for comparison?
+
 * TODO Main
   `--deterministic' vs. `--sampling'; we just want average scores and
   times, since we don't have anything to compare it with. Why not
   `--trie' and `--predicate'? Also: `--whole-dictionary'; not to
-  mention: `--verbose' (may affect running time).
+  mention: `--verbose' (may affect running time). `--max-guesses',
+  too.
 * TODO Rationale
   I went through three implementations before I found one with
   acceptable performance characteristics: regular-expression based,
@@ -64,6 +93,12 @@
   count letters linearly; the difference is that the sampling-strategy
   works on integer strings and stops counting when the ratios of
   letters are sufficiently stable.
+
+  Mutually exclusive strategies on the command line?
+
+  A little bizarre: we have this tripartite Venn diagram: predicate
+  and regex share strings; predicate and trie share predicates; trie
+  and regex are orthogonal?
 * TODO Experimental setup
   Would like to have a table at the end that compares the scores of
   the regex, trie and string implementations against the reference

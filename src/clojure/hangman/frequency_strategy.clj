@@ -7,12 +7,12 @@
             HangmanGame$Status)
            java.lang.Character)
   (:use [clojure.contrib.io :only (reader)]
-        [clojure.contrib.string :only (replace-str)]
         [clojure.set :only (difference map-invert)]
         [clojure.string :only (join)]
         [clojure.contrib.math :only (abs)]
         [clojure.pprint :only (pprint)]
-        [clojure.contrib.generic.functor :only (fmap)]))
+        [clojure.contrib.generic.functor :only (fmap)]
+        [hangman.core :only (debug)]))
 
 (defn letter->count-->letter->percentage [letter->count]
   (let [total (apply + (vals letter->count))]
@@ -100,8 +100,37 @@
           (sorted-map)
           letter->count))
 
+(def wildcard-predicate (constantly true))
+
+(defn positive-predicate [predicans]
+  (fn [predicandum] (= predicans predicandum)))
+
+(defn negative-predicate [predicans]
+  (fn [predicandum] (not (= predicans predicandum))))
+
+(defn string->predicates [string default-predicate]
+  (map (fn [char]
+         (if (= char HangmanGame/MYSTERY_LETTER)
+           default-predicate
+           (positive-predicate (char->letter char))))
+       string))
+
 ;;;; The abstract frequency strategy, basis for regex- and
 ;;;; predicate-strategies.
+
+(defn make-arity->dictionary [reduce file]
+  (with-open [input (reader file)]
+    (binding [*in* input]
+      (loop [word (read-line)
+             arity->dictionary {}]
+        (if word
+          (recur (read-line)
+                 (let [arity (count word)
+                       dictionary (arity->dictionary arity)]
+                   (assoc arity->dictionary
+                     arity
+                     (reduce dictionary word))))
+          arity->dictionary)))))
 
 (defn make-frequency-strategy
   [filter-dictionary
@@ -127,7 +156,8 @@
           (let [words (get-words @dictionary)
                 n-words (count words)]
             (let [remaining-guesses (.numWrongGuessesRemaining game)]
-              (if (<= n-words remaining-guesses)
+              (if (and (pos? n-words)
+                       (<= n-words remaining-guesses))
                 (let [word (nth words (rand-int n-words))]
                   (reset! dictionary (remove-word word @dictionary))
                   (reset! last-guess nil)

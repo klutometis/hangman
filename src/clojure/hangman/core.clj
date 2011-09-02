@@ -46,6 +46,7 @@
   [make-strategy
    arity->dictionary
    arity->letter->count
+   additional-arguments
    words]
   (let [time-values
         (map (fn [word]
@@ -55,13 +56,14 @@
                       (run (new HangmanGame word 4)
                            (make-strategy
                             (arity->dictionary arity)
-                            (arity->letter->count arity))))]
-                 {:time time
+                            (arity->letter->count arity)
+                            (additional-arguments arity))))]
+                 {:time-in-ms time
                   :score value}))
              words)
         data (zipmap words time-values)
-        average-time (average-vals data :time)
+        average-time (average-vals data :time-in-ms)
         average-score (average-vals data :score)]
     {:data (into (sorted-map) data)
-     :average-time average-time
+     :average-time-in-ms average-time
      :average-score average-score}))
