@@ -1,5 +1,12 @@
 # -*- org -*-
 * TODO Tests
+  #+BEGIN_SRC clojure
+    (use 'clojure.test
+         'hangman.test.core)
+    
+    (run-tests 'hangman.test.core)
+    
+  #+END_SRC
 * DONE Test package
   CLOSED: [2011-09-02 Fri 17:35]
   #+BEGIN_SRC clojure
