@@ -1,0 +1,2 @@
+#! /usr/bin/env bash
+java -jar hangman-0.1-SNAPSHOT-standalone.jar "${@}"
