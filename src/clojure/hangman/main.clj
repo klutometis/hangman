@@ -26,7 +26,7 @@
 
 (defn -main [& args]
   (let [usage "Usage: hangman [--deterministic-regex|--sampling-regex|--predicate|--trie] [--max-wrong-guesses|-m GUESSES] [--all|-a] [-v|--verbose] DICTIONARY [WORD]..."
-        args (and args ["--help"])]
+        args (or args ["--help"])]
     (with-command-line args
       usage
       [[deterministic-regex? d? "Use the deterministic regex strategy." true]
