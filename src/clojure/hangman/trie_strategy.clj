@@ -113,7 +113,7 @@
 (defn make-arity->trie-letter->count [arity->dictionary]
   (make-arity->letter->count count-trie arity->dictionary))
 
-(defn make-trie-strategy [initial-dictionary initial-letter->count & arity]
+(defn make-trie-strategy [initial-dictionary initial-letter->count & [arity]]
   (make-frequency-strategy
    (fn [dictionary guessed-so-far last-guess]
      (let [predicates (string->predicates guessed-so-far (negative-predicate last-guess))]
