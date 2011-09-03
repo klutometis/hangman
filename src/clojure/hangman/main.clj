@@ -23,7 +23,6 @@
   (:gen-class))
 
 (defn -main [& args]
-  (debug args)
   (let [args (or args ["--help"])]
     (with-command-line args
       "Usage: hangman [--deterministic-regex|--sampling-regex|--predicate|--trie] [--max-wrong-guesses|-m GUESSES] [--all|-a] [-v|--verbose] DICTIONARY [WORD]..."
@@ -74,4 +73,5 @@
                                additional-arguments
                                max-wrong-guesses
                                words
-                               verbose?))))))))
+                               verbose?)))))))
+  (flush))
