@@ -12,52 +12,46 @@
          '[clojure.contrib.generic.functor :only (fmap)]
          '[clojure.contrib.io :only (reader)])
     
-    (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
-          arity->letter->count (fmap deterministic-count-letters arity->dictionary)
-          words (line-seq (reader "words-head.txt"))
-          words ["this-word-doesn't-exist"]]
-      (pprint
-       (run-words make-deterministic-regex-strategy
-                  arity->dictionary
-                  arity->letter->count
-                  (constantly nil)
-                  4
-                  words
-                  false)))
+    (let [words (take 1000 (shuffle (line-seq (reader "words.txt"))))]
+      (let [arity->dictionary (make-arity->regex-dictionary "words.txt")
+            arity->letter->count (fmap deterministic-count-letters arity->dictionary)]
+        (pprint
+         (run-words make-deterministic-regex-strategy
+                    arity->dictionary
+                    arity->letter->count
+                    (constantly nil)
+                    4
+                    words)))
     
-    #_ (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
-          arity->letter->count (fmap sampling-count-letters arity->dictionary)
-          words (line-seq (reader "words-head.txt"))]
-      (pprint
-       (run-words make-sampling-regex-strategy
-                  arity->dictionary
-                  arity->letter->count
-                  (constantly nil)
-                  4
-                  words)))
+     (let [arity->dictionary (make-arity->regex-dictionary "words.txt")
+           arity->letter->count (fmap sampling-count-letters arity->dictionary)]
+       (pprint
+        (run-words make-sampling-regex-strategy
+                   arity->dictionary
+                   arity->letter->count
+                   (constantly nil)
+                   4
+                   words)))
     
-    #_ (let [arity->dictionary (make-arity->predicate-dictionary "words-head.txt")
-          arity->letter->count (fmap sampling-count-letters arity->dictionary)
-          words (line-seq (reader "words-head.txt"))]
-      (pprint
-       (run-words make-sampling-predicate-strategy
-                  arity->dictionary
-                  arity->letter->count
-                  (constantly nil)
-                  4
-                  words)))
+     (let [arity->dictionary (make-arity->predicate-dictionary "words.txt")
+           arity->letter->count (fmap sampling-count-letters arity->dictionary)]
+       (pprint
+        (run-words make-sampling-predicate-strategy
+                   arity->dictionary
+                   arity->letter->count
+                   (constantly nil)
+                   4
+                   words)))
     
-    #_ (let [arity->dictionary (make-arity->trie-dictionary "words-head.txt")
-          arity->letter->count (fmap count-trie arity->dictionary)
-          words (line-seq (reader "words-head.txt"))]
-      (pprint
-       (run-words make-trie-strategy
-                  arity->dictionary
-                  arity->letter->count
-                  identity
-                  4
-                  words)))
-    
+     (let [arity->dictionary (make-arity->trie-dictionary "words.txt")
+           arity->letter->count (fmap count-trie arity->dictionary)]
+       (pprint
+        (run-words make-trie-strategy
+                   arity->dictionary
+                   arity->letter->count
+                   identity
+                   4
+                   words))))
   #+END_SRC
 
   Sampling vs. deterministic on entire dictionary (constant overhead
