@@ -111,7 +111,7 @@
           letter->count))
 
 (def wildcard-predicate
-  "True w.r.t. all letters."
+  ^{:doc "True w.r.t. all letters."}
   (constantly true))
 
 (defn positive-predicate [predicans]

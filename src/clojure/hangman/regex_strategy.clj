@@ -47,9 +47,9 @@ regexen."
    initial-letter->count))
 
 (def make-deterministic-regex-strategy
-  "Make a regex strategy that counts letters deterministically."
+  ^{:doc "Make a regex strategy that counts letters deterministically."}
   (partial make-regex-strategy deterministic-count-letters))
 
 (def make-sampling-regex-strategy
-  "Make a regex strategy that counts letters samplingly."
+  ^{:doc "Make a regex strategy that counts letters samplingly."}
   (partial make-regex-strategy deterministic-count-letters))

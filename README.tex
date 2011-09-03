@@ -225,6 +225,54 @@ accurate.
 \end{description}
 
 \section{Invoking \texttt{hangman}}
+
+The basic invocation is:
+
+\begin{quote}
+  \texttt{./hangman <dictionary-file> <word>+}
+\end{quote}
+
+e.g.
+
+\begin{quote}
+  \texttt{./hangman words.txt comaker cumulative eruptive factual}
+\end{quote}
+
+which should present you with some summary statistics at the end:
+
+\begin{quote}
+\begin{verbatim}
+  {:data
+    {"comaker" {:time-in-ms 349.20504, :score 11},
+     "cumulative" {:time-in-ms 57.731637, :score 5},
+     "eruptive" {:time-in-ms 47.931958, :score 5},
+     "factual" {:time-in-ms 70.195218, :score 7}},
+    :average-time-in-ms 131.26596,
+    :average-score 7.0}
+\end{verbatim}
+\end{quote}
+
+By default, it runs the deterministic regex strategy; to run other
+strategies, or for more verbose output, see the usage:
+
+\begin{quote}
+\begin{verbatim}
+Usage: hangman [--deterministic-regex|--sampling-regex|--predicate|--trie]
+  [--max-wrong-guesses|-m GUESSES] [--all|-a] [-v|--verbose] DICTIONARY
+  [WORD]...
+Options
+  --deterministic-regex, -d      Use the deterministic regex strategy.
+                                   [default true]
+  --sampling-regex, -s           Use the sampling regex strategy.                           
+  --predicate, -p                Use the predicate strategy.                                
+  --trie, -t                     Use the trie strategy.                                     
+  --max-wrong-guesses, -m <arg>  Set max wrong guesses to GUESSES.
+                                   [default 4]   
+  --all, -a                      Run all the words in the dictionary.                       
+  --verbose, -v                  Verbose output (NB: affects reported times)
+\end{verbatim}
+\end{quote}
+
 \section{Conclusions and Possible Improvements}
 
 I'm a little ashamed to admit that I couldn't beat linear regex, even
