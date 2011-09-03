@@ -1,5 +1,7 @@
 # -*- org -*-
-* TODO Test package
+* TODO Tests
+* DONE Test package
+  CLOSED: [2011-09-02 Fri 17:35]
   #+BEGIN_SRC clojure
     (use 'hangman.core
          'hangman.frequency-strategy
@@ -77,13 +79,15 @@
 
   Non-mutually-exclusive algorithms for comparison?
 
-* TODO Main
+* DONE Main
+  CLOSED: [2011-09-02 Fri 17:35]
   `--deterministic' vs. `--sampling'; we just want average scores and
   times, since we don't have anything to compare it with. Why not
   `--trie' and `--predicate'? Also: `--whole-dictionary'; not to
   mention: `--verbose' (may affect running time). `--max-guesses',
   too.
-* TODO Rationale
+* DONE Rationale
+  CLOSED: [2011-09-02 Fri 17:35]
   I went through three implementations before I found one with
   acceptable performance characteristics: regular-expression based,
   trie-based and sample-based. They all fell into a common pattern:
@@ -118,7 +122,8 @@
   Thought I could sacrifice some trie-invariants for the sake of O(log
   n) deletion; but this proved fatal. Also, large constants overruled
   the O(log n).
-* TODO Experimental setup
+* DONE Experimental setup
+  CLOSED: [2011-09-02 Fri 17:35]
   Would like to have a table at the end that compares the scores of
   the regex, trie and string implementations against the reference
   times (as well as each other's); in addition to score.
@@ -136,7 +141,8 @@
   The performance numbers I've transcribed for testing are meaningless
   on other machines; that's why we have to measure relative
   performance.
-* TODO Frequency strategy
+* DONE Frequency strategy
+  CLOSED: [2011-09-02 Fri 17:35]
   It turns out that we're replicating frequency-based strategy again
   and again: the only difference is the storage mechanism for
   dictionaries, retrieval and filtering mechanism for words (given
@@ -193,17 +199,8 @@
                       (new GuessLetter (letter->char next-guess)))))))))))
     
   #+END_SRC
-* TODO Oh, shit: and don't forget about parallelization.
-  The regex-based, filtering guessing-strategy is susceptible to
-  parallelization; isn't it? See [[http://stackoverflow.com/questions/2622750/why-does-clojure-hang-after-having-performed-my-calculations][this]], though:
-
-  #+BEGIN_QUOTE
-  About pfilter, it should work but run slower than filter, since your
-  predicate is simple. Parallelization isn't free so you have to give
-  each thread moderately intensive tasks to offset the multithreading
-  overhead. Batch your items before filtering them.
-  #+END_QUOTE
-* TODO Trie based guessing strategy
+* DONE Trie based guessing strategy
+  CLOSED: [2011-09-02 Fri 17:36]
   Generate trie at startup; break links as a filtering mechanism (have
   to copy the datastructure, therefore). Trie of cardinality 26
   corresponding to $a \to z$; normally used for prefix matching. Can
@@ -284,7 +281,8 @@
          (. hash-map-clone remove "a")
          (assert (= {"a" 1 "b" 2} (into {} hash-map)))))
    #+END_SRC
-** TODO Trie from word
+** DONE Trie from word
+   CLOSED: [2011-09-02 Fri 17:35]
    #+BEGIN_SRC clojure
      ;;; Can we keep them as transients? We have to copy and mutate them
      ;;; later on, though.
@@ -2675,14 +2673,16 @@
           :average-percent-change-score average-percent-change-score})))
     
   #+END_SRC
-** TODO Probabilistic sampling for frequency?
+** CANCELED Probabilistic sampling for frequency?
+   CLOSED: [2011-09-02 Fri 17:35]
    Can we get a probabilistic idea of what the frequencies are by
    sampling the tree? Doing an entire sample seems excessive; how do
    we establish a reasonable N: the point at which (if ever) the
    relative rations of letters seem to stabilize? Cf. spreading
    activation: it simply sums over individual deltas and stops when a
    certain threshold, epsilon, has been reached.
-** TODO Trie from dictionary
+** DONE Trie from dictionary
+   CLOSED: [2011-09-02 Fri 17:35]
    We could trie every word and do a merge-reduction on the root to
    avoid mutation; expensive? Also, I'd like to keep track of
    [[node-histography]].
@@ -2710,14 +2710,8 @@
      (make-trie-dictionary "words.txt")
      
    #+END_SRC
-* TODO We are assuming that the dictionary is lower-case.
-* TODO Check TODO.pdf into the repository as documentation?
-  It goes against checking derivative things in; maybe we can generate
-  it for releases. Here's a [[http://stackoverflow.com/questions/1431082/programmatically-add-files-to-a-github-download-page][half-ass discussion]]; 'tis true, though,
-  that PDF is a PS-derivative and, as such, is not wholly binary.
-
-  We can .gitignore =TODO.pdf=, such that we only check it in "when we
-  really mean it."
+* DONE We are assuming that the dictionary is lower-case.
+  CLOSED: [2011-09-02 Fri 17:35]
 * DONE `run' should return the score and total time.
   CLOSED: [2011-08-22 Mon 20:13]
   - CLOSING NOTE [2011-08-22 Mon 20:13] \\
@@ -3378,6 +3372,25 @@
     included into package — it's much easier to distribute such
     packages to end users.
   #+END_QUOTE
+* CANCELED Oh, shit: and don't forget about parallelization.
+  CLOSED: [2011-09-02 Fri 17:35]
+  The regex-based, filtering guessing-strategy is susceptible to
+  parallelization; isn't it? See [[http://stackoverflow.com/questions/2622750/why-does-clojure-hang-after-having-performed-my-calculations][this]], though:
+
+  #+BEGIN_QUOTE
+  About pfilter, it should work but run slower than filter, since your
+  predicate is simple. Parallelization isn't free so you have to give
+  each thread moderately intensive tasks to offset the multithreading
+  overhead. Batch your items before filtering them.
+  #+END_QUOTE
+* CANCELED Check TODO.pdf into the repository as documentation?
+  CLOSED: [2011-09-02 Fri 17:36]
+  It goes against checking derivative things in; maybe we can generate
+  it for releases. Here's a [[http://stackoverflow.com/questions/1431082/programmatically-add-files-to-a-github-download-page][half-ass discussion]]; 'tis true, though,
+  that PDF is a PS-derivative and, as such, is not wholly binary.
+
+  We can .gitignore =TODO.pdf=, such that we only check it in "when we
+  really mean it."
 * CANCELED call-cc
   CLOSED: [2011-08-22 Mon 19:34]
   Unlike the scheme example (which depends heavily on mutation) runs
