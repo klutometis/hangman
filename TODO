@@ -79,7 +79,6 @@
   create dictionaries: they should just be reductions over words.
 
   Non-mutually-exclusive algorithms for comparison?
-
 * DONE Main
   CLOSED: [2011-09-02 Fri 17:35]
   `--deterministic' vs. `--sampling'; we just want average scores and
@@ -123,6 +122,14 @@
   Thought I could sacrifice some trie-invariants for the sake of O(log
   n) deletion; but this proved fatal. Also, large constants overruled
   the O(log n).
+
+** Abstract
+
+   I'm presenting four solutions to the hangman problem which are
+   sub-strategies of the arch-strategy I call the "frequency
+   strategy;" the sub-strategies are the so-called "regex-strategy,"
+   the "predicate-strategy" and the "trie-strategy."
+
 * DONE Experimental setup
   CLOSED: [2011-09-02 Fri 17:35]
   Would like to have a table at the end that compares the scores of
