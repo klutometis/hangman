@@ -18,9 +18,11 @@
                   arity->dictionary
                   arity->letter->count
                   (constantly nil)
-                  words)))
+                  4
+                  words
+                  true)))
     
-    (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
+    #_ (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
           arity->letter->count (fmap sampling-count-letters arity->dictionary)
           words (line-seq (reader "words-head.txt"))]
       (pprint
@@ -28,9 +30,10 @@
                   arity->dictionary
                   arity->letter->count
                   (constantly nil)
+                  4
                   words)))
     
-    (let [arity->dictionary (make-arity->predicate-dictionary "words-head.txt")
+    #_ (let [arity->dictionary (make-arity->predicate-dictionary "words-head.txt")
           arity->letter->count (fmap sampling-count-letters arity->dictionary)
           words (line-seq (reader "words-head.txt"))]
       (pprint
@@ -38,9 +41,10 @@
                   arity->dictionary
                   arity->letter->count
                   (constantly nil)
+                  4
                   words)))
     
-    (let [arity->dictionary (make-arity->trie-dictionary "words-head.txt")
+    #_ (let [arity->dictionary (make-arity->trie-dictionary "words-head.txt")
           arity->letter->count (fmap count-trie arity->dictionary)
           words (line-seq (reader "words-head.txt"))]
       (pprint
@@ -48,6 +52,7 @@
                   arity->dictionary
                   arity->letter->count
                   identity
+                  4
                   words)))
     
   #+END_SRC
@@ -109,6 +114,10 @@
   A little bizarre: we have this tripartite Venn diagram: predicate
   and regex share strings; predicate and trie share predicates; trie
   and regex are orthogonal?
+
+  Thought I could sacrifice some trie-invariants for the sake of O(log
+  n) deletion; but this proved fatal. Also, large constants overruled
+  the O(log n).
 * TODO Experimental setup
   Would like to have a table at the end that compares the scores of
   the regex, trie and string implementations against the reference

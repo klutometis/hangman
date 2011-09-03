@@ -110,6 +110,15 @@
            (positive-predicate (char->letter char))))
        string))
 
+(defn make-arity->letter->count [count-letters arity->dictionary]
+  (fmap count-letters arity->dictionary))
+
+(defn make-arity->deterministic-letter->count [arity->dictionary]
+  (make-arity->letter->count deterministic-count-letters arity->dictionary))
+
+(defn make-arity->sampling-letter->count [arity->dictionary]
+  (make-arity->letter->count sampling-count-letters arity->dictionary))
+
 ;;;; The abstract frequency strategy, basis for regex- and
 ;;;; predicate-strategies.
 

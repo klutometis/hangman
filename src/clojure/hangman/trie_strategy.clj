@@ -7,7 +7,8 @@
            char->letter
            letter->char
            word->string
-           string->word)]
+           string->word
+           make-arity->letter->count)]
         [hangman.core :only
          (debug)]))
 
@@ -108,6 +109,9 @@
   (make-arity->dictionary
    #(merge-tries %1 (plumb (string->word %2)))
    file))
+
+(defn make-arity->trie-letter->count [arity->dictionary]
+  (make-arity->letter->count count-trie arity->dictionary))
 
 (defn make-trie-strategy [initial-dictionary initial-letter->count & arity]
   (make-frequency-strategy

@@ -7,4 +7,5 @@
   :java-source-path "src/java"
   :dev-dependencies [[swank-clojure "1.3.2"]
                      [delimc "0.1.0"]
-                     [net.dnolen.clj-cont "0.1.0"]])
+                     [net.dnolen.clj-cont "0.1.0"]]
+  :main hangman.main)

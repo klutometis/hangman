@@ -2,9 +2,7 @@
   (:import (com.factual.hangman
             HangmanGame
             HangmanGame$Status))
-  (:use clojure.contrib.pprint
-        hangman.frequency-strategy
-        hangman.regex-strategy))
+  (:use [clojure.contrib.pprint :only (pprint)]))
 
 (defmacro debug-map
   [& exprs]
@@ -31,12 +29,15 @@
   ;; Can also just wrap this in with-open, since
   ;; assertCanKeepGuessing (in guessLetter and guessWord) will
   ;; throw an exception.
-  (while (can-keep-guessing? game)
-    (if verbose? (println game))
-    (let [guess (.nextGuess strategy game)]
-      (.makeGuess guess game)))
-  (if verbose? (println game))
-  (.currentScore game))
+  (let [output
+        (do (with-out-str
+              (while (can-keep-guessing? game)
+                (if verbose? (println game))
+                (let [guess (.nextGuess strategy game)]
+                  (.makeGuess guess game))))
+            (if verbose? (println game)))]
+    {:output output
+     :score (.currentScore game)}))
 
 (defn average-vals [data key]
   (let [vals (map key (vals data))]
@@ -47,32 +48,36 @@
     arity->dictionary
     arity->letter->count
     additional-arguments
+    max-wrong-guesses
     words]
      (run-words make-strategy
                 arity->dictionary
                 arity->letter->count
                 additional-arguments
+                max-wrong-guesses
                 words
                 false))
   ([make-strategy
-   arity->dictionary
-   arity->letter->count
-   additional-arguments
-   words
-   verbose?]
+    arity->dictionary
+    arity->letter->count
+    additional-arguments
+    max-wrong-guesses
+    words
+    verbose?]
      (let [time-values
            (map (fn [word]
                   (let [arity (count word)
-                        [time value]
+                        [time {:keys [output score]}]
                         (time-and-value
-                         (run (new HangmanGame word 4)
+                         (run (new HangmanGame word max-wrong-guesses)
                               (make-strategy
                                (arity->dictionary arity)
                                (arity->letter->count arity)
                                (additional-arguments arity))
                               verbose?))]
+                    (if output (println output))
                     {:time-in-ms time
-                     :score value}))
+                     :score score}))
                 words)
            data (zipmap words time-values)
            average-time (average-vals data :time-in-ms)
