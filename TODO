@@ -19,7 +19,7 @@
          '[clojure.contrib.generic.functor :only (fmap)]
          '[clojure.contrib.io :only (reader)])
     
-    (let [words (take 1000 (shuffle (line-seq (reader "words.txt"))))]
+    (let [words (take 10 (shuffle (line-seq (reader "words.txt"))))]
       (let [arity->dictionary (make-arity->regex-dictionary "words.txt")
             arity->letter->count (fmap deterministic-count-letters arity->dictionary)]
         (pprint

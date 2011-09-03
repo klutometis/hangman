@@ -2,7 +2,9 @@
   (:use [hangman.core]
         [clojure.test]
         [hangman.frequency-strategy]
-        [hangman.trie-strategy])
+        [hangman.trie-strategy]
+        [hangman.regex-strategy]
+        [hangman.predicate-strategy])
   (:import (com.factual.hangman
             HangmanGame)))
 
@@ -87,3 +89,40 @@
                           (make-trie-strategy trie letter->count (count word))
                           false))
              25)))))
+
+(let [dictionary '("sensitive" "fritters" "dyslexias" "secureness" "paragoning")
+      letter->count (deterministic-count-letters dictionary)]
+  (let [word (first dictionary)]
+    (deftest test-filter-regex-dictionary
+      (is (= (filter-regex-dictionary dictionary "---------" \a)
+             '("sensitive"))))
+
+    (deftest test-deterministic-regex-strategy
+      (is (= (:score (run (new HangmanGame word 4)
+                          (make-regex-strategy deterministic-count-letters dictionary letter->count)
+                          false))
+             1)))
+
+    (deftest test-sampling-regex-strategy
+      (is (= (:score (run (new HangmanGame word 4)
+                          (make-regex-strategy sampling-count-letters dictionary letter->count)
+                          false))
+             1)))))
+
+(let [words '("sensitive" "fritters" "dyslexias" "secureness" "paragoning")
+      dictionary (map string->word words)
+      letter->count (deterministic-count-letters dictionary)]
+  (let [word (first dictionary)]
+    (deftest test-filter-predicate-dictionary
+      (is (= (filter-predicate-dictionary dictionary "---------" 0)
+             ;; We have several here (as opposed to regex) because the
+             ;; predicate-strategy is not arity-sensitive.
+             '((18 4 13 18 8 19 8 21 4)
+               (5 17 8 19 19 4 17 18)
+               (18 4 2 20 17 4 13 4 18 18)))))
+
+    (deftest test-sampling-predicate-strategy
+      (is (= (:score (run (new HangmanGame (first words) 4)
+                          (make-sampling-predicate-strategy dictionary letter->count)
+                          false))
+             1)))))

@@ -5,7 +5,9 @@
           remove-word
           deterministic-count-letters
           sampling-count-letters)]
-        [clojure.contrib.string :only (replace-str)]))
+        [clojure.contrib.string :only (replace-str)])
+  (:import (com.factual.hangman
+            HangmanGame)))
 
 (defn make-arity->regex-dictionary [file]
   (make-arity->dictionary
@@ -17,7 +19,8 @@
 
 (defn filter-regex-dictionary [dictionary guessed-so-far last-guess]
   (let [negative-regex (negative-regex last-guess)
-        filtering-regex (format "^%s$" (replace-str "-" negative-regex guessed-so-far))
+        filtering-regex
+        (format "^%s$" (replace-str (str HangmanGame/MYSTERY_LETTER) negative-regex guessed-so-far))
         filtering-pattern (re-pattern filtering-regex)]
     (filter #(re-seq filtering-pattern %) dictionary)))
 

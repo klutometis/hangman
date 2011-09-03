@@ -18,7 +18,7 @@
                word
                predicates)))
 
-(defn- filter-predicate-dictionary [dictionary guessed-so-far last-guess]
+(defn filter-predicate-dictionary [dictionary guessed-so-far last-guess]
   (let [predicates (string->predicates guessed-so-far (negative-predicate last-guess))]
     (filter (partial every-predicate? predicates) dictionary)))
 
