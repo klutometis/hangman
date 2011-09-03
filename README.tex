@@ -1,4 +1,8 @@
 \documentclass{article}
+\usepackage[autosize]{dot2texi}
+\usepackage{tikz}
+\usetikzlibrary{automata,snakes,arrows,shapes}
+\usepackage{float}
 \usepackage[xetex,
   pdfborder={0 0 0},
   colorlinks,
@@ -47,10 +51,61 @@ remaining-words/remaining-guesses ratio looks auspicious:
 \end{enumerate}
 
 \section{Substrategies}
-The substrategies of the frequency strategy are variations
+The sub-strategies of the frequency arch-strategy are variations on
+step \ref{common-letter}.
 
 \subsection{Trie strategy}
+The trie-strategy encodes the dictionary in a sparse, 26-ary trie (see
+figure \ref{trie-graph}). I had high hopes for the trie-strategy because
+of the $O(\log_{26} n)$ lookup and deletion; it both performed the
+worst, however, and was least accurate.
+
+I suspect that, on the one hand, constant factors intervened; on the
+other, I decided to sacrifice certain trie-invariants for the sake of
+performance. As a result of pathological trie-degeneration, the
+letter-counting algorithm counted spurious letters; and adjusting the
+algorithm to maintain trie-invariants gave even worse performance.
+
+\begin{figure}[H]
+  \begin{center}
+    \begin{dot2tex}[fdp]
+      digraph G {
+        a1 [label=a]
+        a2 [label=a]
+        r1 [label=r]
+        r2 [label=r]
+        // r3 [label=r]
+        g1 [label=g]
+        g2 [label=g]
+        h1 [label=h]
+        h2 [label=h]
+        h3 [label=h]
+        // h4 [label=h]
+        s1 [label=s]
+        s2 [label=s]
+        s3 [label=s]
+        i1 [label=i]
+        e1 [label=e]
+        // e2 [label=e]
+        root -> a1 -> a2 -> r1 -> g1 -> h1
+        r1 -> r2 -> g2 -> h2 -> h3
+        root -> z -> y -> m -> o -> s1 -> i1 -> s2
+        s1 -> e1 -> s3
+        // root -> c -> h4 -> e2 -> r3 -> u -> b
+      }
+    \end{dot2tex}
+  \end{center}
+  \caption{The sparse 26-ary trie encoding `aargh', `aarrgh',
+    `aarrghh', `zymoses' and `zymosis'.}
+  \label{trie-graph}
+\end{figure}
+
 \subsection{Predicate strategy}
+
+The predicate-strategy is a linear strategy which is less general than
+the regex-strategy below: it filters integer-encoded
+string-representations with ad-hoc negative and positive predicates.
+
 \subsection{Regex strategy}
 \subsubsection{Deterministic regex strategy}
 \subsubsection{Sampling regex strategy}
