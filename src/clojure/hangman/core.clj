@@ -1,31 +1,39 @@
 (ns hangman.core
+  ^{:doc "Utilities for playing a hangman game common to all
+  strategies."}
   (:import (com.factual.hangman
             HangmanGame
             HangmanGame$Status))
   (:use [clojure.contrib.pprint :only (pprint)]))
 
 (defmacro debug-map
+  "Map quoted expressions to their values."
   [& exprs]
   `(zipmap (reverse (list ~@(map (fn [expr] `'~expr) exprs)))
            (reverse (list ~@(map (fn [expr] expr) exprs)))))
 
 (defmacro debug-list
+  "List-associate expressions with their values."
   [& exprs]
   `(list ~@(map (fn [expr] `(list '~expr ~expr)) exprs)))
 
 (defmacro debug [& exprs]
+  "Pretty-print expression-value associations."
   `(pprint (debug-map ~@exprs)))
 
 (defn- can-keep-guessing?
   ([game] (= (.gameStatus game) HangmanGame$Status/KEEP_GUESSING)))
 
 (defmacro time-and-value [expr]
+  "Return both the value and execution time for an expression."
   `(let [start# (. System (nanoTime))
          ret# ~expr]
      [(/ (double (- (. System (nanoTime)) start#)) 1000000.0)
       ret#]))
 
 (defn run-with-out-str [game strategy verbose?]
+  "Capture the output of a game in a string and return it with the
+score in a {:output ... :score ...} map."
   ;; Can also just wrap this in with-open, since
   ;; assertCanKeepGuessing (in guessLetter and guessWord) will
   ;; throw an exception.
@@ -40,6 +48,7 @@
      :score (.currentScore game)}))
 
 (defn run [game strategy verbose?]
+  "Run a game, returning its score in a {:output nil :score ...} map."
   ;; Can also just wrap this in with-open, since
   ;; assertCanKeepGuessing (in guessLetter and guessWord) will
   ;; throw an exception.
@@ -52,6 +61,7 @@
    :score (.currentScore game)})
 
 (defn average-vals [data key]
+  "Average over the values of a map."
   (let [vals (map key (vals data))
         n-vals (count vals)]
     (if (zero? n-vals)
@@ -59,6 +69,8 @@
       (float (/ (reduce + vals) (count vals))))))
 
 (defn run-words
+  "Run games over words with a given strategy; returning scores, times
+and summary statistics."
   ([make-strategy
     arity->dictionary
     arity->letter->count

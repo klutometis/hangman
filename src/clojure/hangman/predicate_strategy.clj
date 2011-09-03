@@ -1,4 +1,6 @@
 (ns hangman.predicate-strategy
+  ^{:doc "Predicate-strategy for hangman that applies ad-hoc
+  predicates to integer-encode strings."}
   (:use
    [clojure.contrib.io :only (reader)]
    [hangman.frequency-strategy
@@ -13,16 +15,22 @@
            negative-predicate)]))
 
 (defn every-predicate? [predicates word]
+  "Tests whether `word' satisifies `predicates'; superstrings that
+share a common prefix will satisfy `predicates'."
   (every? true?
           (map (fn [letter predicate] (predicate letter))
                word
                predicates)))
 
 (defn filter-predicate-dictionary [dictionary guessed-so-far last-guess]
+  "Filter `dictionary' according to predicates gleaned from
+`guessed-so-far' and `last-guess'."
   (let [predicates (string->predicates guessed-so-far (negative-predicate last-guess))]
     (filter (partial every-predicate? predicates) dictionary)))
 
 (defn make-arity->predicate-dictionary [file]
+  "Make a mapping from word-arity to an integer-encoded dictionary
+suitable for ad-hoc predicates."
   (with-open [input (reader file)]
     (binding [*in* input]
       (loop [string (read-line)
@@ -41,6 +49,7 @@
           arity->dictionary)))))
 
 (defn make-sampling-predicate-strategy
+  "Make a predicate-strategy with a sampling letter-counter."
   [initial-dictionary initial-letter->count & rest]
   (make-frequency-strategy
    filter-predicate-dictionary
