@@ -1,8 +1,10 @@
 \documentclass{article}
 \usepackage[autosize]{dot2texi}
 \usepackage{tikz}
+\usepackage{amsmath}
 \usetikzlibrary{automata,snakes,arrows,shapes}
 \usepackage{float}
+\usepackage{booktabs}
 \usepackage[xetex,
   pdfborder={0 0 0},
   colorlinks,
@@ -19,12 +21,14 @@
 \begin{abstract}
 I'd like to present four solutions to the hangman problem which are
 sub-strategies of an arch-strategy called \emph{frequency-strategy}:
-it reduces the word-space by filtering on the most common unguessed
-letter. Three sub-strategies, the \emph{regex-strategy},
-\emph{predicate-strategy} and \emph{trie-strategy}, which differ by
-how they calculate the most common letter, are discussed below. There
-are also \emph{deterministic} and \emph{sampling} variants on
-these sub-strategies.
+frequency-strategy reduces the word-space by filtering on the most
+common unguessed letter and guesses words when the
+remaining-words/remaining-guesses ratio looks auspicious. Three
+sub-strategies, the \emph{regex-strategy}, \emph{predicate-strategy}
+and \emph{trie-strategy}, which differ by how they calculate the most
+common letter, are discussed below. There are also
+\emph{deterministic} and \emph{sampling} variants on these
+sub-strategies.
 
 The strategies in order of decreasing performance are: deterministic
 regex-strategy; sampling regex-strategy; predicate-strategy;
@@ -52,21 +56,34 @@ remaining-words/remaining-guesses ratio looks auspicious:
 
 \section{Substrategies}
 The sub-strategies of the frequency arch-strategy are variations on
-step \ref{common-letter}.
+step \ref{common-letter}; table \ref{performance} has a comparison of
+their relative performance when run over the entire dictionary.
+
+\begin{table}
+  \begin{center}
+    \begin{tabular}{lcccc}
+      \toprule
+      & Trie & Predicate & Determ. rgx. & Sampl. rgx. \\
+      \midrule
+      Average time (ms) & 315.19897 & 69.23657 & 22.884363 & 22.892752 \\
+      Average score & 11.089 & 7.214 & 7.082 & 7.077 \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+  \caption{Relative performance of the trie-, predicate-,
+    deterministic- and sampling-regex-strategies over $1000$ random
+    words.}
+  \label{performance}
+\end{table}
 
 \subsection{Trie strategy}
+
 The trie-strategy encodes the dictionary in a sparse, 26-ary trie (see
 figure \ref{trie-graph}). I had high hopes for the trie-strategy because
 of the $O(\log_{26} n)$ lookup and deletion; it both performed the
 worst, however, and was least accurate.
 
-I suspect that, on the one hand, constant factors intervened; on the
-other, I decided to sacrifice certain trie-invariants for the sake of
-performance. As a result of pathological trie-degeneration, the
-letter-counting algorithm counted spurious letters; and adjusting the
-algorithm to maintain trie-invariants gave even worse performance.
-
-\begin{figure}[H]
+\begin{figure}[h]
   \begin{center}
     \begin{dot2tex}[fdp]
       digraph G {
@@ -74,24 +91,20 @@ algorithm to maintain trie-invariants gave even worse performance.
         a2 [label=a]
         r1 [label=r]
         r2 [label=r]
-        // r3 [label=r]
         g1 [label=g]
         g2 [label=g]
         h1 [label=h]
         h2 [label=h]
         h3 [label=h]
-        // h4 [label=h]
         s1 [label=s]
         s2 [label=s]
         s3 [label=s]
         i1 [label=i]
-        e1 [label=e]
-        // e2 [label=e]
+        e [label=e]
         root -> a1 -> a2 -> r1 -> g1 -> h1
         r1 -> r2 -> g2 -> h2 -> h3
         root -> z -> y -> m -> o -> s1 -> i1 -> s2
-        s1 -> e1 -> s3
-        // root -> c -> h4 -> e2 -> r3 -> u -> b
+        s1 -> e -> s3
       }
     \end{dot2tex}
   \end{center}
@@ -100,19 +113,131 @@ algorithm to maintain trie-invariants gave even worse performance.
   \label{trie-graph}
 \end{figure}
 
+I suspect that, on the one hand, constant factors intervened; on the
+other, I decided to sacrifice certain trie-invariants for the sake of
+performance. As a result of pathological trie-degeneration, the
+letter-counting algorithm counted spurious letters; and adjusting the
+algorithm to maintain trie-invariants gave even worse performance.
+
+\begin{description}
+  \item [Average time (ms)] 315.19897
+  \item [Average score] 11.089
+\end{description}
+
 \subsection{Predicate strategy}
 
 The predicate-strategy is a linear strategy which is less general than
-the regex-strategy below: it filters integer-encoded
-string-representations with ad-hoc negative and positive predicates.
+the regex-strategy below: it filters integer-encoded\footnote{The
+  integers are simply $\text{ASCII}(letter) - 97$.}
+string-representations (see figure \ref{predicate-strings}) with
+ad-hoc negative and positive predicates. The predicates corresponding
+to a game-state of e.g. `\texttt{\_\_R\_\_}' with a last guess of
+`\texttt{E}' (4) are $(\lnot 4 \mathbin{\land} \lnot 4 \mathbin{\land}
+17 \mathbin{\land} \lnot 4 \mathbin{\land} \lnot 4)$.
+
+\begin{figure}[h]
+  \begin{center}
+    \begin{texttt}
+      (0 0 17 6 7) \\
+      (0 0 17 17 6 7) \\
+      (0 0 17 17 6 7 7) \\
+      (25 24 12 14 18 4 18) \\
+      (25 24 12 14 18 8 18)
+    \end{texttt}
+  \end{center}
+  \caption{Predicate-encoding for `aargh', `aarrgh', `aarrghh',
+    `zymoses' and `zymosis'.}
+  \label{predicate-strings}
+\end{figure}
+
+Despite the fact that these ad-hoc predicates are less general than
+regular expressions, they fail to outperform them; I suspect that the
+overhead of \emph{lambda}-application is to blame.
+
+\begin{description}
+  \item [Average time (ms)] 69.23657
+  \item [Average score] 7.214
+\end{description}
 
 \subsection{Regex strategy}
-\subsubsection{Deterministic regex strategy}
+
+The regex-strategy, like the predicate strategy, is linear; it stores
+it dictionaries, however, as lists of character-encoded strings %% (see
+%% figure \ref{regex-strings})
+and filters them with negative and positive regular expressions. The
+regex corresponding to a game-state of e.g. `\texttt{\_\_R\_\_}' with
+a last guess of `\texttt{E}' is
+\texttt{\^{}[\^{}E][\^{}E]R[\^{}E][\^{}E]\$}.
+
 \subsubsection{Sampling regex strategy}
+
+The sampling regex strategy differs from its deterministic sibling in
+that, instead of making an exhaustive count of letters frequencies, it
+samples the word space until a stable ratio of letters appears. The
+notion of stability has three tuning parameters:
+
+\begin{enumerate}
+\item $\epsilon$, or \texttt{delta-percentage-tolerance}, the
+  percentage below which changes in frequency are considered
+  negligible;
+\item \texttt{sampling frequency}, the number of iteration between
+  sampling; and
+\item \texttt{ratio-to-n-of-minimum-iterations}, the ratio of the
+  total words; after which to begin sampling.
+\end{enumerate}
+
+It should be possible to tune these parameters to outperform
+deterministic regex with some sacrifice in accuracy.
+
+\begin{description}
+  \item [Average time (ms)] 22.892752
+  \item [Average score] 7.077
+\end{description}
+
+%% \begin{figure}[h]
+%%   \begin{center}
+%%     \begin{texttt}
+%%       aargh \\
+%%       aarrgh \\
+%%       aarrghh \\
+%%       zymoses \\
+%%       zymosis
+%%     \end{texttt}
+%%   \end{center}
+%%   \caption{Regex-encoding for `aargh', `aarrgh', `aarrghh',
+%%     `zymoses' and `zymosis'.}
+%%   \label{regex-strings}
+%% \end{figure}
+
+\subsubsection{Deterministic regex strategy}
+
+The deterministic regex-strategy differs from its sampling sibling in
+that it does a full frequency count of all letters before making a
+guess. It should, in theory, be more accurate than sampling and
+slightly slower; in practice, it is practically indistinguishable from
+sampling with respect to speed and score. In table \ref{performance},
+for instance, is happened to be both faster than sampling and less
+accurate.
+
+\begin{description}
+  \item [Average time (ms)] 22.884363
+  \item [Average score] 7.082
+\end{description}
+
 \section{Invoking \texttt{hangman}}
-\section{Unimplemented Possible Improvements}
+\section{Conclusions and Possible Improvements}
+
+I'm a little ashamed to admit that I couldn't beat linear regex, even
+with a more sophisticated trie-algorithm; it may be that I shouldn't
+have been so dogmatic about using functional algorithms: a little
+mutation doesn't hurt once in a while.
+
+Some TODOs:
+
 \begin{itemize}
 \item Don't merely guess a remaining word randomly: rank them by
   frequency of constituent letters.
+\item Tune sampling regex so that it outperforms deterministic regex.
+\item Beat linear regex!
 \end{itemize}
 \end{document}
