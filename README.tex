@@ -1,0 +1,63 @@
+\documentclass{article}
+\usepackage[xetex,
+  pdfborder={0 0 0},
+  colorlinks,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue,
+]{hyperref}
+\title{Four Frequency-Strategy Solutions to Hangman}
+\author{Peter Danenberg
+  \texttt{<}\href{mailto:danenberg@post.harvard.edu}
+  {\nolinkurl{danenberg@post.harvard.edu}}\texttt{>}}
+\begin{document}
+\maketitle
+\begin{abstract}
+I'd like to present four solutions to the hangman problem which are
+sub-strategies of an arch-strategy called \emph{frequency-strategy}:
+it reduces the word-space by filtering on the most common unguessed
+letter. Three sub-strategies, the \emph{regex-strategy},
+\emph{predicate-strategy} and \emph{trie-strategy}, which differ by
+how they calculate the most common letter, are discussed below. There
+are also \emph{deterministic} and \emph{sampling} variants on
+these sub-strategies.
+
+The strategies in order of decreasing performance are: deterministic
+regex-strategy; sampling regex-strategy; predicate-strategy;
+trie-strategy.
+\end{abstract}
+\tableofcontents
+\section{Frequency Strategy}
+The frequency strategy reduces the space of possible solutions by
+filtering on the most common letter, guessing a word when the
+remaining-words/remaining-guesses ratio looks auspicious:
+
+\begin{enumerate}
+\item \label{filter} Filter on the last guessed letter (if it exists).
+\item Is the ratio of words to remaining guesses auspicious?
+  \begin{enumerate}
+  \item If so, guess a remaining word.
+  \item \label{common-letter} Otherwise, guess the most common unguessed letter.
+  \end{enumerate}
+\item Is the game over?
+  \begin{enumerate}
+  \item If so, return the score.
+  \item Otherwise, return to step \ref{filter}.
+  \end{enumerate}
+\end{enumerate}
+
+\section{Substrategies}
+The substrategies of the frequency strategy are variations
+
+\subsection{Trie strategy}
+\subsection{Predicate strategy}
+\subsection{Regex strategy}
+\subsubsection{Deterministic regex strategy}
+\subsubsection{Sampling regex strategy}
+\section{Invoking \texttt{hangman}}
+\section{Unimplemented Possible Improvements}
+\begin{itemize}
+\item Don't merely guess a remaining word randomly: rank them by
+  frequency of constituent letters.
+\end{itemize}
+\end{document}
