@@ -25,7 +25,7 @@
      [(/ (double (- (. System (nanoTime)) start#)) 1000000.0)
       ret#]))
 
-(defn run [game strategy verbose?]
+(defn run-with-out-str [game strategy verbose?]
   ;; Can also just wrap this in with-open, since
   ;; assertCanKeepGuessing (in guessLetter and guessWord) will
   ;; throw an exception.
@@ -38,6 +38,18 @@
           (if verbose? (println game)))]
     {:output output
      :score (.currentScore game)}))
+
+(defn run [game strategy verbose?]
+  ;; Can also just wrap this in with-open, since
+  ;; assertCanKeepGuessing (in guessLetter and guessWord) will
+  ;; throw an exception.
+  (while (can-keep-guessing? game)
+    (if verbose? (println game))
+    (let [guess (.nextGuess strategy game)]
+      (.makeGuess guess game)))
+  (if verbose? (println game))
+  {:output nil
+   :score (.currentScore game)})
 
 (defn average-vals [data key]
   (let [vals (map key (vals data))]
@@ -64,7 +76,9 @@
     max-wrong-guesses
     words
     verbose?]
-     (let [time-values
+     (let [run
+           (if verbose? run-with-out-str run)
+           time-values
            (map (fn [word]
                   (let [arity (count word)
                         [time {:keys [output score]}]

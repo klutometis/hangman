@@ -14,7 +14,8 @@
     
     (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
           arity->letter->count (fmap deterministic-count-letters arity->dictionary)
-          words (line-seq (reader "words-head.txt"))]
+          words (line-seq (reader "words-head.txt"))
+          words ["this-word-doesn't-exist"]]
       (pprint
        (run-words make-deterministic-regex-strategy
                   arity->dictionary
@@ -22,7 +23,7 @@
                   (constantly nil)
                   4
                   words
-                  true)))
+                  false)))
     
     #_ (let [arity->dictionary (make-arity->regex-dictionary "words-head.txt")
           arity->letter->count (fmap sampling-count-letters arity->dictionary)

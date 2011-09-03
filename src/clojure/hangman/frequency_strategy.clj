@@ -2,7 +2,8 @@
   (:use [clojure.contrib.io :only (reader)]
         [clojure.contrib.generic.functor :only (fmap)]
         [clojure.string :only (join)]
-        [clojure.set :only (difference map-invert)])
+        [clojure.set :only (difference map-invert)]
+        [hangman.core :only (debug)])
   (:import (com.factual.hangman
             HangmanGame
             GuessingStrategy
@@ -136,6 +137,13 @@
                      (reduce dictionary word))))
           arity->dictionary)))))
 
+(def *default-random-string-length* 8)
+
+(defn random-string
+  ([] (random-string *default-random-string-length*))
+  ([length]
+     (join (take length (map letter->char (shuffle (range 26)))))))
+
 (defn make-frequency-strategy
   [filter-dictionary
    count-letters
@@ -159,23 +167,27 @@
               (reset! letter->count (count-letters @dictionary))))
           (let [words (get-words @dictionary)
                 n-words (count words)]
-            (let [remaining-guesses (.numWrongGuessesRemaining game)]
-              (if (and (pos? n-words)
-                       (<= n-words remaining-guesses))
-                (let [word (nth words (rand-int n-words))]
-                  (reset! dictionary (remove-word word @dictionary))
-                  (reset! last-guess nil)
-                  (new GuessWord (word->string word)))
-                (let [guessed-letters
-                      (map #(-> % Character/toLowerCase char->letter)
-                           (.getAllGuessedLetters game))
-                      ;; Devaluate letters already-guessed.
-                      letter->count
-                      (merge @letter->count
-                             (zipmap guessed-letters (replicate (count guessed-letters) 0)))
-                      count->letter
-                      (into (sorted-map-by >) (map-invert letter->count))
-                      next-guess
-                      (count->letter (apply max (keys count->letter)))]
-                  (reset! last-guess next-guess)
-                  (new GuessLetter (letter->char next-guess)))))))))))
+            (if (zero? n-words)
+              ;; Whoops: we have a word here which doesn't appear to
+              ;; be in the dictionary. Let's keep guessing randomly
+              ;; until the game is over.
+              (new GuessWord (random-string))
+              (let [remaining-guesses (.numWrongGuessesRemaining game)]
+                (if (<= n-words remaining-guesses)
+                  (let [word (nth words (rand-int n-words))]
+                    (reset! dictionary (remove-word word @dictionary))
+                    (reset! last-guess nil)
+                    (new GuessWord (word->string word)))
+                  (let [guessed-letters
+                        (map #(-> % Character/toLowerCase char->letter)
+                             (.getAllGuessedLetters game))
+                        ;; Devaluate letters already-guessed.
+                        letter->count
+                        (merge @letter->count
+                               (zipmap guessed-letters (replicate (count guessed-letters) 0)))
+                        count->letter
+                        (into (sorted-map-by >) (map-invert letter->count))
+                        next-guess
+                        (count->letter (apply max (keys count->letter)))]
+                    (reset! last-guess next-guess)
+                    (new GuessLetter (letter->char next-guess))))))))))))
