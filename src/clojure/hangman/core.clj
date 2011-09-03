@@ -30,12 +30,12 @@
   ;; assertCanKeepGuessing (in guessLetter and guessWord) will
   ;; throw an exception.
   (let [output
-        (do (with-out-str
-              (while (can-keep-guessing? game)
-                (if verbose? (println game))
-                (let [guess (.nextGuess strategy game)]
-                  (.makeGuess guess game))))
-            (if verbose? (println game)))]
+        (with-out-str
+          (while (can-keep-guessing? game)
+            (if verbose? (println game))
+            (let [guess (.nextGuess strategy game)]
+              (.makeGuess guess game)))
+          (if verbose? (println game)))]
     {:output output
      :score (.currentScore game)}))
 
@@ -75,7 +75,7 @@
                                (arity->letter->count arity)
                                (additional-arguments arity))
                               verbose?))]
-                    (if output (println output))
+                    (if output (print output))
                     {:time-in-ms time
                      :score score}))
                 words)
