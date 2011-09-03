@@ -91,9 +91,7 @@ and summary statistics."
     max-wrong-guesses
     words
     verbose?]
-     (let [run
-           (if verbose? run-with-out-str run)
-           time-values
+     (let [time-values
            (map (fn [word]
                   (let [arity (count word)
                         [time {:keys [output score]}]

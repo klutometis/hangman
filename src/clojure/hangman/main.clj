@@ -45,28 +45,28 @@
         (if (and dictionary words)
           ;; Structure this as a map, instead.
           (let [make-strategy
-                (cond deterministic-regex? make-deterministic-regex-strategy
-                      sampling-regex? make-sampling-regex-strategy
+                (cond sampling-regex? make-sampling-regex-strategy
                       predicate? make-sampling-predicate-strategy
                       trie? make-trie-strategy
+                      deterministic-regex? make-deterministic-regex-strategy
                       :else default-make-strategy)
                 make-arity->dictionary
-                (cond deterministic-regex? make-arity->regex-dictionary
-                      sampling-regex? make-arity->regex-dictionary
+                (cond sampling-regex? make-arity->regex-dictionary
                       predicate? make-arity->predicate-dictionary
                       trie? make-arity->trie-dictionary
+                      deterministic-regex? make-arity->regex-dictionary
                       :else default-make-arity->dictionary)
                 make-arity->letter->count
-                (cond deterministic-regex? make-arity->deterministic-letter->count
-                      sampling-regex? make-arity->sampling-letter->count
+                (cond sampling-regex? make-arity->sampling-letter->count
                       predicate? make-arity->deterministic-letter->count
                       trie? make-arity->trie-letter->count
+                      deterministic-regex? make-arity->deterministic-letter->count
                       :else default-make-arity->letter->count)
                 additional-arguments
-                (cond deterministic-regex? (constantly nil)
-                      sampling-regex? (constantly nil)
+                (cond sampling-regex? (constantly nil)
                       predicate? (constantly nil)
                       trie? identity
+                      deterministic-regex? (constantly nil)
                       :else default-additional-arguments)]
             (let [arity->dictionary (make-arity->dictionary dictionary)
                   arity->letter->count (make-arity->letter->count arity->dictionary)
