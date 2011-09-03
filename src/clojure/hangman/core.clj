@@ -52,8 +52,11 @@
    :score (.currentScore game)})
 
 (defn average-vals [data key]
-  (let [vals (map key (vals data))]
-    (float (/ (reduce + vals) (count vals)))))
+  (let [vals (map key (vals data))
+        n-vals (count vals)]
+    (if (zero? n-vals)
+      0.0
+      (float (/ (reduce + vals) (count vals))))))
 
 (defn run-words
   ([make-strategy
